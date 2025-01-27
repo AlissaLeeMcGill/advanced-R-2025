@@ -1,0 +1,107 @@
+---
+title: "Advanced quantitative methods in R: t-test and ANOVA"
+author: "Phillip Hamrick, Ph.D."
+date: "1/29/2023"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+## t-tests
+We use t-tests and ANOVA to look for differences between data sets. There are three basic types of t-tests: (1) one-sample, (2) paired-samples [i.e., within-groups or within-subjects], and (3) independent-samples [i.e., between-groups or between-subjects].
+```{r t-tests}
+rm(list = ls())
+
+# load libraries
+library(psych)
+
+# paired-samples t-test
+
+d <-read.csv("paired_ttest.csv") # load the data
+describe(d$Pre.test) # check the means, pre-test M = 56.36, SD = 9.04, SE = 2.19
+describe(d$Post.test) # check the means, post-test M = 70.39, SD = 12.54, SE = 3.04
+
+t.test(d$Pre.test, d$Post.test, paired = TRUE) # significant difference
+# t(16) = -4.59, p < .001, 95% CI [-20.50, -7.55]
+
+
+# independent-samples t-test
+# fortunately, the layout can still be in wide format like with paired-sample tests
+i <-read.csv("independent_ttest.csv")
+describe(i$Level.6) # M = 80.73, SD = 7.95
+describe(i$Level.3) # M = 63.02, SD = 26.08
+
+t.test(i$Level.6, i$Level.3, var.equal = FALSE) # significant difference; note that R assumes unequal variances between groups; if your variance is equal, use var.equal = TRUE to conduct the student's t-test, otherwise it will run Welch's
+# t(38) = 2.90, p = .006, 95% CI [5.36, 30.04] # equal-variance assumed
+# t(22.50) = 2.90, p = .008, 95% CI [5.08, 30.33] # equal-variance NOT assumed
+
+```
+
+## ANOVA
+ANOVA scales up a t-test by allowing us to look for differences in three or more data sets. This can be within-subjects (e.g., pre-test, post-test, delayed post-test for one group) or between-subjects (e.g., teaching method A, teaching method B, and control), or both. It is increasingly clear that, although ANOVA is better than running a whole bunch of t-tests, it's actually better to use regression or mixed effects modeling instead of ANOVA. Indeed, one of my favorite stats quotes comes from Plonsky & Oswald (2017, SSLA): "Regression can do everything ANOVA can do, and more." To that end, we'll be brief with our code (although there is plenty on reading and interpreting ANOVA in the lectures).
+
+```{r ANOVA}
+rm(list = ls())
+
+
+############# ONE WAY ANOVA
+
+# You will want your data to be in long format; so if it isn't yet, go ahead and do that first.
+
+# load libraries
+library(tidyr)
+library(psych)
+
+# load data
+d <- read.csv("cookie data.csv")
+
+# convert to long format
+d <- gather(d, cookie_type, num_chips, factor_key = TRUE)
+
+# get descriptives
+describeBy(d$num_chips, d$cookie_type)
+
+# do one way ANOVA
+one.way <- aov(num_chips ~ cookie_type, data = d)
+summary(one.way)
+
+
+# IMPORTANT: use oneway.test() if variances are unequal
+oneway.test(num_chips ~ cookie_type, data = d, var.equal = TRUE) # same result as above for equal variances
+oneway.test(num_chips ~ cookie_type, data = d, var.equal = FALSE) # different result if variances not equal
+
+# check for equality of variance (statistically, not visually, but both are good :) )
+library(car)
+leveneTest(num_chips ~ cookie_type, data = d) # cannot reject null that variances are equal
+
+
+
+
+############## REPEATED MEASURES ANOVA
+
+rm(list = ls())
+
+repeated <-read.csv("pre-post-delayed.csv")
+repeated$test <-as.factor(repeated$test)
+describeBy(repeated$score, group = repeated$test)
+# pre: M = 53.35, SD = 8.47
+# post: M = 80.93, SD = 4.41
+# delayed: 56.47, SD = 22.21
+
+rmanova <-aov(repeated$score ~ repeated$test)
+summary(rmanova) 
+# F(2, 72) = 29.29, p < .001
+
+```
+
+The above won't work for repeated measures ANOVA, and the code for aov() can get clunky trying to make it work. I recommend using the rstatix() package instead.
+```{r}
+
+repeated <-read.csv("pre-post-delayed wid.csv")
+repeated$test <-as.factor(repeated$test)
+library(rstatix)
+
+# repeated measures ANOVA with rstatix()
+result <- anova_test(data = repeated, dv = score, wid = id, within = test)
+get_anova_table(result)
+```

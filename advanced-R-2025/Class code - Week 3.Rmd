@@ -1,0 +1,108 @@
+---
+title: "Advanced Quantitative Skills in R"
+author: "Phillip Hamrick, Ph.D."
+date: '2023-01-09'
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+# Data wrangling
+Sometimes our data are not laid out right or are hard to read for either you or R. There's lots of things we can do about that. Today, I'm going to show you just a few features that make our life a lot easier in R.
+
+
+# loading up data from an Excel file and merging data frames
+```{r}
+
+# load two data sets, one with experiment data and one with biodata
+bio <- read.csv("biodata.csv") # load biodata
+wm <- read.csv("working_memory.csv") # load working memory data
+
+
+# now let's merge these automatically based on matches between participant IDs in each document; we'll use the left_join() function from the dplyr package
+library(dplyr)
+
+d <-left_join(bio, wm, by = "Participant") 
+
+```
+
+CAREFUL! Sometimes this step doesn't work because variables aren't labeled correctly as being either a factor or a numerical variable. Let's look at how to change those when we need to.
+
+# converting data types
+```{r}
+
+# converting to factor and numeric variable types
+d$Participant <-as.factor(d$Participant)
+d$Age <-as.numeric(d$Age)
+d$Sex <-as.factor(d$Sex)
+d$NativeLanguage <-as.factor(d$NativeLanguage)
+d$Working.Memory <-as.numeric(d$Working.Memory)
+
+
+```
+
+You may want to manipulate other aspects of your data frame, too. Let's look at a couple of common options
+
+```{r}
+
+# dropping unnecessary columns (e.g., what if we wanted our data frame to only have Participant, Age, and WM?)
+# we use the subset() function along with the c() function
+x <- subset(d, select = c(Participant, Age, Working.Memory)) # keep selected columns
+y <- subset(d, select = -c(Sex, NativeLanguage)) # drop selected columns
+ 
+
+
+# filtering out unnecessary rows 
+#(e.g., what if we didn't want to include Mandarin speakers?)
+a <- filter(d, NativeLanguage != "Mandarin")
+
+#(e.g., what if we only wanted Mandarin speakers?)
+b <- filter(d, NativeLanguage == "Mandarin")
+
+# keep in mind, there are different logical operators in R, and != and == are two of them. you can also use > < and others (e.g., what if you wanted to only look at people older than 21?)
+c <- filter(d, Age > 21)
+
+
+```
+
+A common problem with wrangling data is transposing it from a wide format to a long format and vice versa. Different statistical procedures require different data layouts, pretty much in all statistical software (including SPSS). R is no different. 
+
+# converting from wide to long and vice versa
+```{r}
+
+# let's makeup some data in a wide format, which is common for many coders and software (e.g., Qualtrics)
+olddata_wide <- read.table(header=TRUE, text='
+ subject sex control cond1 cond2
+       1   M     7.9  12.3  10.7
+       2   F     6.3  10.6  11.1
+       3   F     9.5  13.1  13.8
+       4   M    11.5  13.4  12.9
+')
+
+# make sure the subject column is a factor
+olddata_wide$subject <- factor(olddata_wide$subject)
+
+# load the tidyr package
+library(tidyr)
+
+# convert to long format with gather()
+# The arguments to gather():
+# - data: Data object
+# - key: Name of new key column (made from names of data columns)
+# - value: Name of new value column
+# - ...: Names of source columns that contain values
+# - factor_key: Treat the new key column as a factor (instead of character vector)
+data_long <- gather(olddata_wide, condition, measurement, control:cond2, factor_key=TRUE)
+
+# convert to wide format with spread()
+# The arguments to spread():
+# - data: Data object
+# - key: Name of column containing the new column names
+# - value: Name of column containing values
+data_wide <- spread(data_long, condition, measurement)
+
+```
+
+
+
+

@@ -1,0 +1,168 @@
+---
+title: "Advanced Quantitative Skills in R"
+author: "Phillip Hamrick, Ph.D."
+date: "2023-01-09"
+output:
+  pdf_document: default
+  html_document: default
+editor_options:
+  chunk_output_type: console
+---
+
+
+# Week 1
+## The super basics
+First off, R is a calculator and a programming language in one. I like to show this with a simple demonstration.
+
+```{r Demonstration}
+
+# simple math
+1+1 # basic math: addition
+2*3 # basic math: multiplication
+
+# we can assign values to objects (objects can be a variable, a value, a vector, a model, etc)
+a = 1 # the = sign can assign a value (e.g., 1) to a variable (e.g., "a")
+b <-2 # the <- sign works similarly
+
+# now we can add variables that have been assigned numerical values
+a + b
+44 + a
+3*b
+
+```
+OK. So R is a calculator and a programming language as we can see. You can do much, much more than this, but let's just stick to the basics.
+
+## Sequences and vectors
+```{r Sequences and vectors}
+
+# Creating sequences of numbers
+1:5
+seq <-1:10
+
+# We can do the same with seq() with some added functions
+seq(from = 1, to = 5)
+
+# And we can make sequences with certain parameters (e.g., sequencing by every N units)
+seq(from = 1, to = 5, by = 2)
+
+# you can also make vectors
+vec1 <- c(1, 3, 5)
+vec2 <- c(2, 4, 6)
+
+# and you can do math over the vectors
+vec1 + vec2
+
+```
+
+
+## Load packages
+Now we are ready to begin some real statistics. The first thing to do is load some statistical packages that we'll be needing. R can do some stuff just by itself, but it needs "packages" or "libraries" that are pre-built to do certain things. These packages are kind of like apps for R. 
+
+For example, the package ggplot2() is important for making graphs, and the package psych() is important for doing basic statistical processes that are common for behavioral researchers, such as psychologists, linguists, and so on. I also like to use tidyr(), which is a package for wrangling data into a layout that makes it easier to analyze.
+
+```{r Load & install packages}
+
+install.packages("psych")
+install.packages("ggplot2")#pretty graphs
+install.packages("tidyr") #data wrangling
+install.packages("magrittr") #writing some functions
+install.packages("dplyr")
+
+library(psych)
+library(ggplot2)
+library(tidyr)
+library(magrittr)
+
+```
+
+## Descriptives
+There are lots of ways to do descriptive statistics in R. I recommend either tidyr/dplyr or psych packages.
+```{r Descriptives}
+
+# load libraries
+library(dplyr)
+library(ggplot2)
+
+# chickwts is a built in data set with chick weights by feed
+print(chickwts)
+
+## There is often more than one way to do the same thing in R; so do what works for you!
+# calculate means for each feed type (from dplyr)
+means_df <- chickwts %>%
+  group_by(feed) %>%
+  summarize(means = mean(weight))
+
+# print table of means
+knitr::kable(means_df)
+
+library(psych)
+describeBy(chickwts$weight, group = chickwts$feed)
+
+
+```
+Note that some descriptives are missing even from the psych() package describeBy() function. For example, variance is missing as are SS. The good news is that these are manually computable from the data below, but you can also use other functions to calculate them directly.
+
+## General functions that may be helpful
+```{r General functions}
+
+# variance
+# var(x, y = NULL, na.rm = FALSE)
+
+# covariance
+# cov(x, y = NULL, use = "everything", method = "pearson")
+
+
+#####
+# You may also find piping to be useful
+
+# piping
+## The %>% operator allows you to “pipe” a value forward into an expression or function. We saw this earlier when computing means in the previous chunk. Here's a simpler example:
+
+# we could create a vector of five numbers (e.g., data points)
+d <- 1:5
+
+# then transform it into z-scores
+z <- scale(d)
+
+# or we could use the pipe to do it all in one step
+a <- 1:5 %>% scale()
+
+
+#### 
+# You can also create your own functions; this one computes the mean
+compute_mean <- function(x) { # create a function called "compute mean" calculated over some variable "x"
+  sum(x) / length(x) # calculate the sum of "x" and divide that by the number of observations of "x"
+}
+
+mean(d) # what we should get
+compute_mean(d) # it works!
+
+```
+
+
+## Common operators
+```{r common operators}
+
+# creating objects
+# <- assigns something to an object
+# = assigns something to an object
+
+# logical operations
+# == equal to
+# != not equal to
+# < less than
+# <= less than or equal to 
+# > greater than
+# >= greater than or equal to
+
+# for example
+2 < 3
+2 == 3
+2 != 3
+
+# other logical operators
+# ! not
+# | or
+# & and
+
+```

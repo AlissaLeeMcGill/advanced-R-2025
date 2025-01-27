@@ -1,0 +1,167 @@
+---
+title: "Advanced Quantitative Skills in R"
+author: "Phillip Hamrick, Ph.D."
+date: '2023-01-09'
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+# Week 2: Data visualization in R
+
+Before we get too deep, let's take a look at some of the data from this chapter in Ismay & Kim (2022). This will be a little practice building on last week. First, you'll need to install the nycflights13() package. Then you'll take a look at the data itself, and figure out what's in the data frame.
+
+# load the sample library from Ismay & Kim (2022)
+```{r}
+
+# load library from ebook (Ismay & Kim, 2022)
+library(nycflights13)
+
+# view flight data
+View(flights)
+
+# what's actually in the flight data set?
+?flights()
+
+```
+
+Cool. So what can we do all these data? Well, one way researchers like to get a handle on what's happening in the data is by visualizing it. So let's do that following the ideas in Ismay & Kim (2022).
+
+# visualize
+```{r}
+
+# load libraries
+library(nycflights13)
+library(ggplot2)
+library(moderndive)
+
+# ggplot formula from the ebook
+ggplot(data = alaska_flights, mapping = aes(x = dep_delay, y = arr_delay)) + geom_point()
+
+# NOTE: Like many things in R, there's more than one way to make graphs and, even within a particular package, there's more than one way to do a thing. The above line is what Ismay & Kim (2022) use to write the code. Below is how I would have done it. Mine's a bit different, as I've developed my own preferences for how I assemble my code. Check it out.
+ggplot(alaska_flights, aes(x = dep_delay, y = arr_delay)) + geom_point() # You get the same result
+```
+
+# OVERVIEW
+ggplot2() is the go-to package for most researchers and data scientists for making outstanding-looking graphs. In what follows, we'll cover the grammar of this package, and we'll look at several different ways of graphing two different kinds of data: data for relationships (e.g., correlation, regression) and data for differences between variables (e.g., t-test, ANOVA).
+
+First, let's break down the essential elements:
+aes = aesthetic mapping, which describes how the variables in the data are mapped to visuals (e.g., what is on the x-axis and y-axis?)
+
+geom = geometric elements, which describe what kind of graph you are going to construct (e.g., bar chart, scatterplot, line chart, boxplot, etc.)
+
+facet = facet sequencing, which allow you to layout multiple graphs within a single output
+
+
+# graphing relationships
+```{r}
+
+# load library with sample data (install first if you haven't)
+library(languageR)
+
+# view the sample data set (lexical decision data)
+View(lexdec)
+
+# what is it?
+?lexdec()
+
+# SAMPLE RESEARCH QUESTION: Is there a relationship (i.e., a correlation) between reaction times to words and word frequency (i.e., how often they occur in a database)?
+
+# graph relationships with ggplot2
+# ggplot(DATAFRAME, aes(x = XDATA, y = YDATA)) + geom_point()
+ggplot(lexdec, aes(x = Frequency, y = RT)) + geom_point()
+
+# it's hard to see a linear trend here. let's add a best-fitting linear model to the data with geom_smooth(method = "lm")
+ggplot(lexdec, aes(x = Frequency, y = RT)) + geom_point() + geom_smooth(method = "lm") 
+
+# great, but as a psycholinguist, i know that these things are often curvilinear, so i might leave the smooth method empty. this uses loess smoothing for data sets with < 1000 observatiosn; for  larger data sets, GAM is used
+ggplot(lexdec, aes(x = Frequency, y = RT)) + geom_point() + geom_smooth() 
+
+# but there are two different types of word, animals and plants; can we see those separately? yes! use facet_wrap or fill or color
+ggplot(lexdec, aes(x = Frequency, y = RT)) + geom_point() + geom_smooth()  + facet_wrap(~ Class)
+
+ggplot(lexdec, aes(x = Frequency, y = RT, fill = Class)) + geom_point() + geom_smooth() 
+
+ggplot(lexdec, aes(x = Frequency, y = RT, color = Class)) + geom_point() + geom_smooth() 
+
+
+```
+
+So it's easy to visually represent a relationship via ggplot2, and there are a LOT of options for editing your graph further. You can change the axis ranges, font size and type, legend content, color scheme, graph background color and grid, etc. There's way more out there than what we can cover in class, but I refer you to the ggplot2 help file as well as the numerous ggplot2 cheat sheets out there, including the two below. Also, you can often find answers via Youtube and Stack Exchange.
+
+https://res.cloudinary.com/dyd911kmh/image/upload/v1666806657/Marketing/Blog/ggplot2_cheat_sheet.pdf
+https://statsandr.com/blog/files/ggplot2-cheatsheet.pdf
+
+
+# graphing differences between variables
+```{r}
+
+# lets look at whether there are differences in RTs to plants and animals
+
+# first, let's rename lexdec as a data frame object to make life easier
+d <-lexdec
+
+# now, let's average RTs to the subject level, but keeping word class (plant vs animal) as a variable
+a <-aggregate(RT ~ Subject + Class, data = d, FUN = mean)
+
+# great, now everyone has a mean RT value for their responses to plants and animals separately
+View(a)
+
+# now let's visualize the within-subject difference in RTs to plant and animal words, first with a boxplot
+ggplot(a, aes(x = Class, y = RT)) + geom_boxplot()
+
+# what about a violin plot?
+ggplot(a, aes(x = Class, y = RT)) + geom_violin()
+
+# both of those are a bit ugly, but they at least show the overall distribution of ALL the data; we can look at making these momentarily. for now, let's consider how we might add points to our plots that represent subject-level means with geom_jitter()
+ggplot(a, aes(x = Class, y = RT)) + geom_boxplot() + geom_jitter()
+ggplot(a, aes(x = Class, y = RT)) + geom_violin() + geom_jitter()
+
+# cool. with geom_jitter() we can see individual data points, whether trial-level or subject-level. 
+
+```
+
+# making things look nice
+```{r}
+
+# let's go back to our scatter plot first. let's add color, change the axis dimensions, and some of the labels
+ggplot(lexdec, aes(x = Frequency, y = RT)) + geom_point() + geom_smooth()  + facet_wrap(~ Class) # old version
+ggplot(lexdec, aes(x = Frequency, y = RT, color = Class)) + geom_point() + geom_smooth()  + facet_wrap(~ Class) + 
+  xlim(0,10) + ylim(5, 10) + # change axis dimensions
+  xlab("Word Frequency (log-tranformed") + ylab("Reaction Times (log-transformed)") +
+  theme(legend.position = "none") # remove the redundant legend
+
+
+# cool. you can see how some things might make graphs easier or harder to parse. i leave it to you to decide what works best for your studies.
+
+# let's try another, this time with the group differences in RTs for plant and animal words.
+ggplot(a, aes(x = Class, y = RT, fill = Class, colour = Class)) + # whoa! colour made it harder to read! 
+  geom_boxplot() + 
+  geom_jitter(size = 5) + # different values give you different sizes
+  ylim(6, 7) + 
+  xlab("Word Class") + ylab("RT (log-transformed)") 
+
+# this is just a sampling of things you can do. anything you can imagine, you can pretty much do with the basic elements of ggplot2 and some careful digging online.
+  
+```
+
+
+# plotting data distributions
+```{r}
+
+# histogram
+hist(lexdec$RT)
+
+# density plot
+plot(density(lexdec$RT))
+
+# you can do these in ggplot2. for example...
+ggplot(lexdec, aes(x = RT)) + geom_density()
+
+# and make it cooler
+ggplot(lexdec, aes(x = RT, colour = Class)) + geom_density(size = 2)
+
+```
+
+
+
