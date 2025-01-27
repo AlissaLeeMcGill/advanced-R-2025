@@ -19,6 +19,7 @@ bio <- read.csv("biodata.csv") # load biodata
 wm <- read.csv("working_memory.csv") # load working memory data
 
 
+
 # now let's merge these automatically based on matches between participant IDs in each document; we'll use the left_join() function from the dplyr package
 library(dplyr)
 
@@ -32,7 +33,9 @@ CAREFUL! Sometimes this step doesn't work because variables aren't labeled corre
 ```{r}
 
 # converting to factor and numeric variable types
+# a "factor" variable type is used to represent categorical data - a variable with a limited set of possible values
 d$Participant <-as.factor(d$Participant)
+# could do d$ParticipantFactor <-as.factor(d$Participant) # this creates a new column on the fly for ya
 d$Age <-as.numeric(d$Age)
 d$Sex <-as.factor(d$Sex)
 d$NativeLanguage <-as.factor(d$NativeLanguage)
@@ -58,6 +61,11 @@ a <- filter(d, NativeLanguage != "Mandarin")
 
 #(e.g., what if we only wanted Mandarin speakers?)
 b <- filter(d, NativeLanguage == "Mandarin")
+
+#can apply multiple filters
+mandarinOver25 <- filter(d, 
+            NativeLanguage == "Mandarin",
+            Age > 25 )
 
 # keep in mind, there are different logical operators in R, and != and == are two of them. you can also use > < and others (e.g., what if you wanted to only look at people older than 21?)
 c <- filter(d, Age > 21)

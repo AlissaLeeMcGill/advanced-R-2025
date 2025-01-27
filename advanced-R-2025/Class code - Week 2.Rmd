@@ -7,6 +7,8 @@ editor_options:
   chunk_output_type: console
 ---
 
+# The GGPLOT Cheat Sheet : https://rstudio.github.io/cheatsheets/html/data-visualization.html
+
 # Week 2: Data visualization in R
 
 Before we get too deep, let's take a look at some of the data from this chapter in Ismay & Kim (2022). This will be a little practice building on last week. First, you'll need to install the nycflights13() package. Then you'll take a look at the data itself, and figure out what's in the data frame.
@@ -29,6 +31,12 @@ Cool. So what can we do all these data? Well, one way researchers like to get a 
 
 # visualize
 ```{r}
+
+#install libraries
+install.packages("ggplot2")
+install.packages("nycflights13")
+install.packages("moderndive")
+
 
 # load libraries
 library(nycflights13)
@@ -57,6 +65,7 @@ facet = facet sequencing, which allow you to layout multiple graphs within a sin
 ```{r}
 
 # load library with sample data (install first if you haven't)
+install.packages("languageR")
 library(languageR)
 
 # view the sample data set (lexical decision data)
@@ -137,7 +146,7 @@ ggplot(lexdec, aes(x = Frequency, y = RT, color = Class)) + geom_point() + geom_
 # let's try another, this time with the group differences in RTs for plant and animal words.
 ggplot(a, aes(x = Class, y = RT, fill = Class, colour = Class)) + # whoa! colour made it harder to read! 
   geom_boxplot() + 
-  geom_jitter(size = 5) + # different values give you different sizes
+  geom_jitter(size = 3)+ # different values give you different sizes
   ylim(6, 7) + 
   xlab("Word Class") + ylab("RT (log-transformed)") 
 
