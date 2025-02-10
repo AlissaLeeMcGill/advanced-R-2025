@@ -79,6 +79,7 @@ A common problem with wrangling data is transposing it from a wide format to a l
 ```{r}
 
 # let's makeup some data in a wide format, which is common for many coders and software (e.g., Qualtrics)
+#header=TRUE the first row is headers and not data
 olddata_wide <- read.table(header=TRUE, text='
  subject sex control cond1 cond2
        1   M     7.9  12.3  10.7
@@ -87,10 +88,12 @@ olddata_wide <- read.table(header=TRUE, text='
        4   M    11.5  13.4  12.9
 ')
 
-# make sure the subject column is a factor
+# make sure the subject column is a factor # cast as a factor syntax here factor(tuff to be cast as factor)
 olddata_wide$subject <- factor(olddata_wide$subject)
 
 # load the tidyr package
+# tidyr, tidyverse, tidymodels <-- good stuffs for peoples commiting to the LONG format!!
+install.packages("tidyr")
 library(tidyr)
 
 # convert to long format with gather()
@@ -98,9 +101,11 @@ library(tidyr)
 # - data: Data object
 # - key: Name of new key column (made from names of data columns)
 # - value: Name of new value column
-# - ...: Names of source columns that contain values
+# - ...: Names of source columns that contain values # control:cond2 - everything inbetween control and cond2
 # - factor_key: Treat the new key column as a factor (instead of character vector)
 data_long <- gather(olddata_wide, condition, measurement, control:cond2, factor_key=TRUE)
+
+#pivot_wider or #pivot_long in dplyr to do a similar thing 
 
 # convert to wide format with spread()
 # The arguments to spread():
@@ -111,6 +116,50 @@ data_wide <- spread(data_long, condition, measurement)
 
 ```
 
+```{r}
+#subject level data!
 
 
+#load libraries
+library(psych)
+library(languageR)
+
+#load data
+lexdec <- lexdec
+
+#how many subjects
+length(unique(lexdec$Subject))
+
+#descriptive stats - descriptive stats for each person ! - Clunky AF - can't plop this into dataframe
+dataframe<-describeBy(lexdec$RT, group= lexdec$Subject)
+
+#aggregate into a dataframe subject level means for reaction time
+#can use a different function (FUN) . Can use median or what ever else rather then mean
+subj = aggregate(RT ~ Subject, data =lexdec, FUN=mean)
+
+#add in more information from our data set
+subj2 = aggregate(RT ~ Subject + Sex + NativeLanguage, data =lexdec, FUN=mean)
+
+#add in conditions? animal or plant
+subj3 = aggregate(RT ~ Subject + Sex + NativeLanguage + Class, data =lexdec, FUN=mean)
+
+#when yo aggregate a dataset , plz rename it lol
+
+```
+
+```{r}
+#create a graph from data frame d that is only female participants working memory data and look also at their native language
+
+#assign colors to native languanges
+#use facet wrap to have each naive language in a graph
+
+dLadiesOnly = filter(d, Sex == "0",
+                     NativeLanguage == "Arabic" | NativeLanguage =="Mandarin")
+library(ggplot2)
+ggplot(dLadiesOnly, aes (y=Working.Memory, x=NativeLanguage, fill= NativeLanguage)) +geom_boxplot(alpha =.60) + geom_jitter(alpha=0.5)
+
+#you can set the colors for ggplot , you can also have additional packages that let you color ggplot somemore
+
+
+```
 

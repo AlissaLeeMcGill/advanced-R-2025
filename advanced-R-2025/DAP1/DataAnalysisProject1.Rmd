@@ -1,0 +1,71 @@
+---
+title: "Data Analysis Project 1"
+author: "Alissa McGill"
+date: "2025-02-05"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r Install and Load all required packages}
+
+# install libraries 
+install.packages("tidyr")
+install.packages("psych")
+install.packages("ggplot2")
+install.packages("car")
+
+# load libraries
+library(tidyr)
+library(psych)
+library(ggplot2)
+library(car)
+
+```
+
+```{r Load the data }
+# load data
+eduInterventionData = read.csv("data.csv")
+
+eduInterventionDataLong = gather(eduInterventionData,
+                                 condition, # control, instructed, feedback
+                                 score, #the test scores
+                                 Control:Instructed, # all of the columns from Control to Instructed
+                                 factor_key = TRUE)
+
+```
+
+```{r Create Histograms }
+
+ggplot(eduInterventionData, aes(x=Control)) + geom_histogram(fill = "hotpink2")
+
+ggplot(eduInterventionData, aes(x=Instructed)) + geom_histogram(fill = "darkorchid2")
+
+ggplot(eduInterventionData, aes(x=Feedback)) + geom_histogram(fill = "deepskyblue1")
+
+```
+
+```{r Descriptive statistics  }
+
+describe(eduInterventionData)
+
+```
+
+```{r One Way ANOVA }
+
+one_way_anova_results <- aov(score ~ condition, data = eduInterventionDataLong)
+summary(one_way_anova_results)
+
+```
+
+```{r Linear regression }
+
+linear_regression_results = lm(score ~ condition, data=eduInterventionDataLong) ; summary(linear_regression_results)
+
+```
+
+```{r Create a Violin plot }
+
+ggplot(eduInterventionDataLong, aes(x =factor(score, level = c("Control","Instructed", "Feedback")), y = score, fill = condition)) + geom_violin(alpha = 0.4) + geom_jitter(aes(color = condition), position = position_jitterdodge()) + xlab("") + ylab("Score")
+
+```

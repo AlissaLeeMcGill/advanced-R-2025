@@ -15,15 +15,58 @@ rm(list = ls())
 # load libraries
 library(psych)
 
-# paired-samples t-test
+# t tests
+# use when you have 2 means!
+# can compare your single mean against a known population, or repeated measures 
 
+
+
+# paired-samples t-test - often a pre-test /post-test model
 d <-read.csv("paired_ttest.csv") # load the data
 describe(d$Pre.test) # check the means, pre-test M = 56.36, SD = 9.04, SE = 2.19
 describe(d$Post.test) # check the means, post-test M = 70.39, SD = 12.54, SE = 3.04
 
+#want to use describeBy for long format - this isn't what we have here, but we
+
+#look at our normality with a quantile-quantile 
+qqnorm(d$Pre.test) #examine QQ plots
+qqline(d$Pre.test) # with line ;  make normality decision - note, normality don't matter too much with large sample size!
+
+
+#paired = true is a paired samples T-test , paired=false is an independent T test.
+# note that each row here is a participant
+# do a two tailed test  - just looking for an extreme value - gets funny if you have a one tailed test
+# sign of the T statistic is flipped depending on which group you put in first 
 t.test(d$Pre.test, d$Post.test, paired = TRUE) # significant difference
 # t(16) = -4.59, p < .001, 95% CI [-20.50, -7.55]
 
+# you can calculate the Cohen's d, or the R squared for effect sizes
+#R^2 = (t^2) / (t^2 +df)
+
+#now, how do we graph this?
+# we need it in the long format for ggplot
+
+library(tidyr)
+d_long <- gather(d,
+                 condition, # pre or post test 
+                 measurement, #the test scores
+                 Pre.test:Post.test, # all of the columns from Pre.test to Post.test
+                 factor_key = TRUE)
+
+# visualize
+library(ggplot2)
+ggplot(d_long, aes(x = condition, y = measurement, fill = condition)) + geom_boxplot() + geom_jitter() + ylim(0,100) + xlab("") + ylab("Test Score") + 
+  labs(fill='Test Condition') + 
+  theme(
+    panel.background = element_rect(fill= 'transparent'), #transparent panel bg
+    plot.background = element_rect(fill='transparent', color=NA), #transparent plot bg
+    panel.grid.major = element_blank(), #remove major gridlines
+    panel.grid.minor = element_blank(), #remove minor gridlines
+    legend.background = element_rect(fill='transparent'), #transparent legend bg
+    legend.box.background = element_rect(fill='transparent') #transparent legend panel
+  )
+
+# rm(list =ls()) to clear the workspace
 
 # independent-samples t-test
 # fortunately, the layout can still be in wide format like with paired-sample tests
@@ -32,8 +75,34 @@ describe(i$Level.6) # M = 80.73, SD = 7.95
 describe(i$Level.3) # M = 63.02, SD = 26.08
 
 t.test(i$Level.6, i$Level.3, var.equal = FALSE) # significant difference; note that R assumes unequal variances between groups; if your variance is equal, use var.equal = TRUE to conduct the student's t-test, otherwise it will run Welch's
+#(we see here that SDs are different, variance is SD squared, so we know that the variances are not equal)
 # t(38) = 2.90, p = .006, 95% CI [5.36, 30.04] # equal-variance assumed
 # t(22.50) = 2.90, p = .008, 95% CI [5.08, 30.33] # equal-variance NOT assumed
+
+#we could check with Levene's test - but we need to flip from wide to long
+
+install.packages('car')
+library(car)
+
+
+i_long <-gather(i, Level, Score, Level.6:Level.3, factor_key = TRUE )
+
+#Philip says "fuck Levene's test" #levenes is very dependent on sample size 
+leveneTest(Score ~ Level, i_long) #significant. # Score ~ Level means "Score as a function of Level"
+
+#plot our data
+#dv = pronunciation iv= group
+
+ggplot(i_long, aes(x = Level, y = Score, fill = Level)) + geom_violin(alpha = 0.4) + geom_jitter(aes(color = Level))  + xlab("Overall Proficency Level") + ylab("Pronounciation Accuracy (%)") + labs(fill='Test Condition') + theme(
+    panel.background = element_rect(fill= 'transparent'), #transparent panel bg
+    plot.background = element_rect(fill='transparent', color=NA), #transparent plot bg
+    panel.grid.major = element_blank(), #remove major gridlines
+    panel.grid.minor = element_blank(), #remove minor gridlines
+    legend.background = element_rect(fill='transparent'), #transparent legend bg
+    legend.box.background = element_rect(fill='transparent') #transparent legend panel
+  )
+
+
 
 ```
 
@@ -56,39 +125,85 @@ library(psych)
 d <- read.csv("cookie data.csv")
 
 # convert to long format
-d <- gather(d, cookie_type, num_chips, factor_key = TRUE)
+d_long <- gather(d, cookie_type, num_chips, factor_key = TRUE)
 
 # get descriptives
-describeBy(d$num_chips, d$cookie_type)
+describeBy(d_long$num_chips, d_long$cookie_type)
+
+# chips_ahoy_reg n = 20 mean= 20.65 SD= 4.61
+# chips_ahoy_chewy n= 20 mean=24.5 SD=7.34
+# chips_ahoy_banana_muffins n= 20 mean=32.45 SD=4.03
 
 # do one way ANOVA
-one.way <- aov(num_chips ~ cookie_type, data = d)
-summary(one.way)
+one_way_anova_results <- aov(num_chips ~ cookie_type, data = d_long)
+summary(one_way_anova_results)
+
+#             Df Sum Sq Mean Sq F value   Pr(>F)    
+# cookie_type  2   1448   724.2   23.75 3.15e-08 ***
+# Residuals   57   1738    30.5                   
 
 
 # IMPORTANT: use oneway.test() if variances are unequal
-oneway.test(num_chips ~ cookie_type, data = d, var.equal = TRUE) # same result as above for equal variances
-oneway.test(num_chips ~ cookie_type, data = d, var.equal = FALSE) # different result if variances not equal
+oneway.test(num_chips ~ cookie_type, data = d_long, var.equal = TRUE) # same result as above for equal variances #default
+# data:  num_chips and cookie_type
+# F = 23.745, num df = 2, denom df = 57, p-value = 3.154e-08
+
+
+oneway.test(num_chips ~ cookie_type, data = d_long, var.equal = FALSE) # different result if variances not equal
+# data:  num_chips and cookie_type
+# F = 37.666, num df = 2.000, denom df = 36.384, p-value = 1.37e-09
+
+
+###Type 1 sums of squares is default for aov , SPSS usually uses Type 3 sum of squares.
+## to use a type 3 sum of squares in R, use the linear model like below!
 
 # check for equality of variance (statistically, not visually, but both are good :) )
 library(car)
-leveneTest(num_chips ~ cookie_type, data = d) # cannot reject null that variances are equal
+m1 = lm(num_chips ~ cookie_type, data=d_long) ; summary(m1)
+# Residuals:
+#    Min     1Q Median     3Q    Max 
+# -17.50  -2.70  -0.45   3.35  11.50 
+# 
+# Coefficients:
+#                             Estimate Std. Error t value Pr(>|t|)    
+# (Intercept)                   20.650      1.235  16.722  < 2e-16 ***
+# cookie_typechips_ahoy_chewy    3.850      1.746   2.205   0.0315 *  
+# cookie_typebanana_muffins     11.800      1.746   6.757 8.09e-09 ***
+# ---
+# Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+# 
+# Residual standard error: 5.523 on 57 degrees of freedom
+# Multiple R-squared:  0.4545,	Adjusted R-squared:  0.4354  ## usually do adjusted R-squared
+# F-statistic: 23.74 on 2 and 57 DF,  p-value: 3.154e-08
+Anova(m1, type=3)
+
+# Anova Table (Type III tests)
+# 
+# Response: num_chips
+#             Sum Sq Df F value    Pr(>F)    
+# (Intercept) 8528.4  1 279.621 < 2.2e-16 ***
+# cookie_type 1448.4  2  23.745 3.154e-08 ***
+# Residuals   1738.5 57                      
+# ---
+# Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
 
 
+leveneTest(num_chips ~ cookie_type, data = d_long) # cannot reject null that variances are equal
 
 
 ############## REPEATED MEASURES ANOVA
 
 rm(list = ls())
+library(rstatix)
 
-repeated <-read.csv("pre-post-delayed.csv")
-repeated$test <-as.factor(repeated$test)
-describeBy(repeated$score, group = repeated$test)
+repeatedwide <-read.csv("pre-post-delayed wid.csv")
+repeatedwide$test <-as.factor(repeated$test)
+describeBy(repeatedwide$score, group = repeated$test)
 # pre: M = 53.35, SD = 8.47
 # post: M = 80.93, SD = 4.41
 # delayed: 56.47, SD = 22.21
 
-rmanova <-aov(repeated$score ~ repeated$test)
+rmanova <-aov(repeated$widescore ~ repeatedwide$test)
 summary(rmanova) 
 # F(2, 72) = 29.29, p < .001
 
@@ -97,11 +212,37 @@ summary(rmanova)
 The above won't work for repeated measures ANOVA, and the code for aov() can get clunky trying to make it work. I recommend using the rstatix() package instead.
 ```{r}
 
-repeated <-read.csv("pre-post-delayed wid.csv")
-repeated$test <-as.factor(repeated$test)
+repeatedwide <-read.csv("pre-post-delayed wid.csv")
+repeatedwide$test <-as.factor(repeatedwide$test)
 library(rstatix)
 
 # repeated measures ANOVA with rstatix()
 result <- anova_test(data = repeated, dv = score, wid = id, within = test)
 get_anova_table(result)
+# ANOVA Table (type III tests)
+# 
+#   Effect  DFn   DFd      F        p p<.05   ges
+# 1   test 1.12 26.95 26.704 1.08e-05     * 0.449
 ```
+
+```{r}
+
+library(ggplot2)
+ggplot(repeatedwide, aes(x =factor(test,level = c("pre","post", "delayed")), y = score, fill = test)) + geom_boxplot(alpha = 0.4) + geom_jitter(aes(color = test)) + xlab("") 
+#+ ylab("Pronounciation Accuracy (%)") + labs(fill='Test Condition') + theme(
+#     panel.background = element_rect(fill= 'transparent'), #transparent panel bg
+#     plot.background = element_rect(fill='transparent', color=NA), #transparent plot bg
+#     panel.grid.major = element_blank(), #remove major gridlines
+#     panel.grid.minor = element_blank(), #remove minor gridlines
+#     legend.background = element_rect(fill='transparent'), #transparent legend bg
+#     legend.box.background = element_rect(fill='transparent') #transparent legend panel
+#   )
+
+ggplot(repeated, aes(x =factor(test,level = c("pre","post", "delayed")), y=score, group=1))+geom_line()+geom_point() + xlab("") 
+
+#can use filter function to remove outliers. 
+#make a little function to calculate 3 deviation above mean and remove
+
+```
+
+
