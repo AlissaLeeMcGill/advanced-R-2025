@@ -1,0 +1,156 @@
+---
+title: "Linear mixed effects models"
+author: "Phillip Hamrick, Ph.D."
+date: '2023-02-20'
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+
+
+```{r}
+# load libraries
+library(psych)
+library(languageR)
+library(ggplot2)
+library(lme4) #mixed effects models!
+library(dplyr)
+```
+
+# load and examine data
+```{r}
+# let's look at some lexical decision data from the languageR package
+d <-lexdec
+# data consist of accuracy and RT data for real words, along with subject-level data (e.g., native language) and item-level data (e.g., word frequencies)
+
+# let's only look at correct responses
+d <-filter(d, Correct == "correct") # 1659 observations becomes 1594 observations, you might report that in the write-up
+percentDataRemoved = 1 - (1594/1659) # 3.91% of the data removed
+
+#note that "d" is in long format already
+
+# let's look at our data
+hist(d$RT) # slightly skewed, but not bad. a log-transform has already been applied, so that helps
+hist(d$Frequency)
+hist(d$Length)
+
+# visualize main variables of interest (frequency and length)
+#we want different lines of fit for each length.
+d$Length <-as.factor(d$Length) #do this to actually get our groupies - otherwise we get one line and colors on a continuum
+
+ggplot(d, aes(x = Frequency, y = RT, color = Length)) + geom_point() + geom_smooth(method = "lm") # looks like we have different intercepts and slopes between the relationship of Frequency and RT for words of varying length. We can model this explicitly and see if it helps our model fit(yay mixed effects model).
+
+```
+
+# wrangle the data (centering variables)
+```{r}
+
+# let's build a simple model that examines the effect of word frequency and word length on RTs, but we have to take a couple of pre-processing steps first
+
+# make sure numeric variables are numeric and factor variables are factors--already good!
+
+# center your predictors, this requires a couple of steps - center at item level( in this case for each word)
+# separate out your data types
+d.items <-select(d, Word, Frequency, Length) %>% unique() # just grabs the values for unique stimulus items(each word, dog cat etc, don't give me owl 20 times)
+d.subjitems <-select(d, Subject, Word, RT) # keeps just subject and item data, to later be re-merged with d.items
+
+# center using either grand/group mean centering or z-transformation (scale = TRUE for z-transform, scale = FALSE for mean centering)
+d.items$Length <-as.numeric(d.items$Length) # change length back to a numeric variable(we changed it before to graph it)
+d.items <-mutate(d.items,
+                 Frequency.c = as.numeric(scale(Frequency, scale = TRUE)),#frequency.c is our new colu name for centered frequency
+                 Length.c = as.numeric(scale(Length, scale = TRUE))) #scale=false changes to mean centering instead of Z
+
+# sanity check the z-transformation worked
+describe(d.items) # mean = 0, SD = 1; perfect!
+
+
+# recombine data frames
+# want to rejoin by whatever column is common
+a <-left_join(d.subjitems, d.items, by = "Word") #"combining by word"  # d.subjitems on left, d.items on right
+
+# if you have mulitple columns in common : 
+##a <-left_join(d.subjitems, d.items, by =c( "Word", "OtherSameCol", "AnotherSameColumn"))
+```
+
+# construct a simple linear mixed effects model
+```{r}
+# now let's build a simple little model -  Looking at a SIMPLE random intercepts model.( no random slopes here)
+# freq and length are the predictors we are interested in.
+# +  means that we are not letting Freq and Len interact 
+# Subject is a clustering variable - the person each has their own intercept
+# Work is a clustering variable - each word has their own intercept
+# reml = false so we can compare to other models - final model we wannna do reml=true
+m1 <-lmer(RT ~ Frequency.c + Length.c + (1|Subject) + (1|Word), data = a, REML = FALSE); summary(m1) # note: by itself AIC and BIC don't tell you much; it's only in comparison with other models and you want the smallest overall fit.
+
+#Want the SMALLEST AIC AND BIC - use to compare models, dont mean anything if you just running one model
+
+# we can see random effect differences from overall fixed effect (e.g., so intercept for almond is slower RT than that for ant)
+ranef(m1)
+
+#we can also look at the intercepts and slopes together with coef()
+coef(m1)
+
+# we can also graph directly off the output of lmer(), rather than ggplot2, but they don't look as nice IMHO
+library("effects")
+allEffects(m1) %>% plot(multiline=TRUE) # visualize fixed effects
+allEffects(m1) %>% as.data.frame() # produce table of specific values of fixed effects
+
+# getting p-values with lmerTest if you want them
+library(lmerTest)
+m1 <-lmer(RT ~ Frequency.c + Length.c + (1|Subject) + (1|Word), data = a, REML = FALSE); summary(m1)
+
+```
+
+# testing different models using the best-fitting, most parsimonious modeling approach of Hamrick & Pandza (2020)--inspired by Bates et al (2015 preprint)
+```{r}
+# but is this model the best one we can make with these DVs and IVs?
+# best-fitting, but most parsimonious, model building
+
+# step 1: forced entry of fixed effects
+m1 <-lmer(RT ~ Frequency.c + Length.c + (1|Subject) + (1|Word), data = a, REML = FALSE); summary(m1)
+
+# step 2: forward stepwise entry of random effects; leave in if model significantly improves fit
+m2 <-lmer(RT ~ Frequency.c + Length.c + (1 + Frequency.c|Subject) + (1|Word), data = a, REML = FALSE); summary(m2) 
+anova(m1, m2) # model m2 significantly better fit than m1; retain m2
+
+m3 <-lmer(RT ~ Frequency.c + Length.c + (1 + Length.c|Subject) + (1|Word), data = a, REML = FALSE); summary(m3) 
+anova(m1, m3) # model m3 significantly better fit  than m1; retain m3 and combine with m2
+
+mCOMBO <-lmer(RT ~ Frequency.c + Length.c + (1 + Frequency.c + Length.c|Subject) + (1|Word), data = a, REML = FALSE); summary(mCOMBO) # doesn't converge/singularity; model too complex
+
+# find the better fitting of the two and keep
+anova(m2, m3) # no sig difference, but m3 descriptively better fit; retain m3
+
+# step 3: backward stepwise remove of fixed effects; so far, m3 is best fitting, most parsimonious model
+m4 <-lmer(RT ~ Length.c + (1 + Length.c|Subject) + (1|Word), data = a, REML = FALSE); summary(m4)
+anova(m3, m4) # m3 a significantl better fit; retain m3
+
+m5 <-lmer(RT ~ Frequency.c + (1 + Frequency.c|Subject) + (1|Word), data = a, REML = FALSE); summary(m5)
+
+anova(m3, m5)
+# model m3 wins, with fixed effects of Frequency and Length, and random slopes for Frequency for subjects and random intercepts for both Subjects and Items
+
+```
+
+# buildmer
+```{r}
+# buildmer() can be used to make our lives easier
+library(buildmer)
+
+m6 <-buildmer(RT ~ Frequency.c + Length.c + (1 + Frequency.c + Length.c|Subject) + (1|Word), data = a, buildmerControl = buildmerControl(ddf = "Satterthwaite", direction = "order")); summary(m6) # slight difference from our stepwise procedure likely due to ordering of contributing predictors to model.
+
+```
+The benefit of buildmer() is it can be done "objectively" and a priori, but reviewers (at least in my experience), have appreciated the step-by-step process shown above. I think buildmer() is great for working fast, though.
+
+# other approaches
+```{r}
+
+# interactions
+m5 <-lmer(RT ~ Frequency.c*Length.c + (1|Subject) + (1|Word), data = a, REML = FALSE); summary(m5)
+
+# maximal model
+m6 <-lmer(RT ~ Frequency.c*Length.c + (1+Frequency.c*Length.c|Subject) + (1|Word), data = a, REML = FALSE); summary(m6)
+
+```
+

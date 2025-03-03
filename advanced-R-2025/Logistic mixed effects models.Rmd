@@ -1,0 +1,94 @@
+---
+title: "Logistic mixed effects models"
+author: "Phillip Hamrick, Ph.D."
+output: 
+  html_document: 
+    number_sections: yes
+    toc: yes
+    toc_float: 
+      collapsed: false
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r}
+# load libraries
+library(dplyr)
+library(psych)
+library(languageR)
+library(ggplot2)
+library(lme4)
+library(lmerTest)
+
+```
+
+Data set 1: 
+These data come from a declarative memory retention task. On day 1, participants saw a mix of real and madeup objects and made speeded decisions regarding their real/madeup status. Two days later, participants were given a recognition memory test, wherein half the objects were OLD (previously seen on day 1) and half the objects were NEW (not seed on day 1). Also, of the real objects, some were manipulable (e.g., fork) while others were not (e.g., mountain). We're going to model accuracy in these data as a function of Status (real/madeup) and Manipulability (manip, nonmanip)
+```{r}
+# load data
+d <- read.csv("decmemret.csv")
+
+# Change Variables
+d$Subject <-as.factor(d$Subject)
+d$Item <-as.factor(d$Item)
+d$Status <-as.factor(d$Status)
+d$Manipulability <-as.factor(d$Manipulability)
+d$Actual.RT <-as.numeric(d$Actual.RT)
+d$Accuracy <-as.numeric(d$Accuracy)
+
+# we don't want to look at madeup items, just real items that are Old/New and Manip/Nonmanip, so remove madeup items, which are marked NA
+d <-na.omit(d) # remove all rows with N/A in them.
+
+# visualize subject-level data
+agg <-aggregate(Accuracy ~ Subject + Status + Manipulability, data = d, FUN = mean)
+ggplot(agg, aes(x = Status, y = Accuracy, color = Manipulability)) + geom_boxplot() 
+
+# build a model (only building one model here for demonstration purposes, but you can use maximal or parsimonious models as you would see fit)
+m1 <- glmer(Accuracy ~ Status*Manipulability + (1+Status+Manipulability|Subject) + (1|Item), data = d, family=binomial, control=glmerControl(optimizer="bobyqa")); summary(m1)
+
+```
+A note on interpretation: 
+Since this is a generalized linear mixed model (logistic), the coefficient estimates are not interpreted in the same way as for a linear model. In this case you have a binary (binomial) outcome with a logit link, so the raw estimates are on the log-odds scale. The estimated coefficient for the intercept, 2.72, is the log odds of Accuracy being 1 (or whatever non-reference value it is coded as) when a continuous predictor is equal to zero (we don't have one of those in this model) and when categorical predictors take their reference values (Status = New and Manipulability = manipulable are the reference levels in this example). 
+
+
+
+
+Data set 2:
+lexdec from the languageR() package has binary accuracy data for lexical decision task
+```{r}
+# clear the environment
+rm(list = ls())
+
+# load data
+d <-lexdec
+
+# let's look at the role of word frequency in predicting accuracy differences between native and non-native speakers
+
+# first, recode the dependent variable "Correct"
+d$Correct <-ifelse(d$Correct == "correct",1,0)
+
+# let's center frequency
+d.items <-select(d, Word, Frequency) %>% unique() 
+d.items <-mutate(d.items,
+                 Frequency.c = as.numeric(scale(Frequency, scale = TRUE)))
+
+# drop the original frequency column to avoid duplication when remerging
+d.items <-select(d.items, Word, Frequency.c)
+
+# remerge
+d <-left_join(d, d.items, by = "Word")
+
+# visualize
+ggplot(d, aes(x = Frequency, y = Correct, color = NativeLanguage, fill = NativeLanguage)) + geom_point() + stat_smooth(method = "glm", method.args = list(family=binomial))
+
+# visualize with centering
+ggplot(d, aes(x = Frequency.c, y = Correct, color = NativeLanguage, fill = NativeLanguage)) + geom_point() + stat_smooth(method = "glm", method.args = list(family=binomial))
+
+# build a model
+m1 <-glmer(Correct ~ NativeLanguage*Frequency.c + (1+Frequency.c|Subject) + (1+NativeLanguage|Word), data = d, family=binomial, control=glmerControl(optimizer="bobyqa")); summary(m1) 
+# output again in log-odds, with the intercept reflecting Correct log odds when NativeLanguage = English and when Frequency.c is at baseline
+# so the effect of a one unit shift in frequency affects NativeLanguage English at .5272, but the effect of a one unit shift in frequency affects NativeLanguage Other at .3600, an additive effect; we can see this reflect in the steeper curve in our plot
+# L2 learners of English perform worse, but not significantly
+# Marginal nonsignificant effect of frequency, with higher accuracy for more frequent words
+# The frequency effect appears larger in L2 learners than native speakers (consistent with previous research) but not to a significant degree.
+```

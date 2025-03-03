@@ -21,7 +21,6 @@ d <-read.csv("correlation.csv")
 
 # We have three variables, self-rated motivation, vocabulary proficiency score, and hair length
 # Let's convert them to their proper numerical values
-# note that we overwrote the variable here
 d$motivation <-as.numeric(d$motivation)
 d$vocabulary <-as.numeric(d$vocabulary)
 d$hair_length <-as.numeric(d$hair_length)
@@ -32,28 +31,19 @@ cor(d) # produces a matrix table of the correlations between all variables
 
 # We might also want both correlation coefficients AND p-values, which we can do with the Hmisc package
 library(Hmisc)
-rcorr(as.matrix(d), type = "pearson") #as.matrix - cast the dataframe as a matrix
-
+rcorr(as.matrix(d), type = "pearson")
 
 # As expected, in our hypothetical data set, motivation and vocabulary are correlated positively, whereas hair length has no substantial correlation with either motivation or vocabulary.
 
 # We know from our reading that we can square the R value to give us shared variance or explained variance. Now we're just back to basic math, keeping in mind that R is a calculator!
 R2 = .47^2 # R2 = .22
 
-
 # We can graph a correlation using a scatterplot. For now, just run the code, and we can worry more about graphing later.
-ggplot(d, aes(x = motivation, y = vocabulary)) + geom_point() + geom_smooth(method = "lm")
+ggplot(d, aes(x = motivation, y = vocabulary)) + geom_point()
 # note: some data points fit the line well, others less so,  but there is a general upward trend.
 # note: the dark grey line represents the 95% confidence interval of the correlation line.
 
-ggplot(d, aes(x = motivation, y = vocabulary)) + geom_point() + geom_smooth(method = "loess")
-# penalize self for wiggly line! more wiggles means less likely to generalize 
-# more data is better ! - less likely to get wigglies
-
-
-ggplot(d, aes(x = motivation, y = vocabulary)) + geom_point() 
-# don't put a line in - we can see there may be a few different lines here
-# intercepts vary- slope looks the same
+describe(d$vocabulary)
 
 ```
 OK. So now you can do a basic correlation! That's it! If you have data that require using Spearman's rho or Kendall's tau, then you add that to your code as "method = N". For example, cor.test(d$motivation, d$vocabulary, method = "kendall").
@@ -64,21 +54,33 @@ OK. So now you can do a basic correlation! That's it! If you have data that requ
 The idea of regression modeling is essentially this: use a series of predictor variables to predict an outcome variable. For example, we can use current weather conditions along with the previous reported weather from years past to predict what the weather will be like tomorrow. Similar to correlations, regression modeling can allow us to try to predict bilingual proficiency by looking at bilingual motivation. Similar to ANOVA, regression modeling can allow us to try to predict vocabulary scores based on teaching method used (A, B, or C). More than that, we can have MULTIPLE predictor variables simultaneously so that we can try to, for example, predict vocabulary scores based on teaching method used (A, B, or C), while also taking into consideration learners' motivation levels. 
   
 ```{r Regression modeling}
-# To keep things simple to start, let's look at our repeated measures ANOVA dataset again.
 
+
+# clear the work environment #started here Feb 12
 rm(list = ls())
 
+# To keep things simple to start, let's look at our repeated measures ANOVA dataset again.
 d <-read.csv("pre-post-delayed.csv")
-d$test <-as.factor(d$test)
+d$test <-as.factor(d$test) #cast as a factor variable 
 
 # Now we can build a regression model. The idea is the same as before. We have an outcome variable (test score) and a predictor variable (test type). When I build a model, I like to give it a name. I use m (meaning model) followed by a number (e.g., 1) in case I'm building multiple models.
 
-m1 <-lm(score ~ test, data = d)
-summary(m1)
+m1 <-lm(score ~ test, data = d); summary(m1)
+
+# This uses variable ordering that goes alphabetically, but I want the categorical predictor baseline to be the pretest condition because it acts as a kind of baseline or reference level
+
+# Let's reorder the factors 
+d$test <- factor(d$test, levels = c("pre", "post", "delayed"))
+#you can change the order in ggplot in this same sort of way
+
+# Rerun regression
+m1 <-lm(score ~ test, data = d); summary(m1)
 
 
-# OK, now let's try another, but this time with multiple predictor variables
 
+
+
+# OK, now let's try another, but this time with multiple predictor variables (multiple regression)
 rm(list = ls())
 d <-read.csv("Stats Workbook.csv")
 
@@ -87,50 +89,92 @@ d$Sex <-as.factor(d$Sex)
 d$Working.Memory <-as.numeric(d$Working.Memory)
 
 m1 <-lm(Vocabulary.Score..Level.2 ~ Sex + Working.Memory, data = d); summary(m1)
-# ... to account for whitespace - just make your columns without spaces 
-# + is not allowing for moderation Sex + Working.Memory
+
+#logistic regression glm instead of lm
+#binomial? multinomial? ect - but u can still use this function
 
 
-#interested in vocab and wm, and difference in sex
-library(ggplot2)
-ggplot(d, aes(x = Working.Memory , y = Vocabulary.Score..Level.2, color = Sex )) + geom_point() + geom_smooth(method ="lm" )
-#no evidence of an interaction
 
-#interested in vocab and sex, and difference in wm - headaches tho - 3d graph?? lol
-#use le interactions package to create some working memory levels.
-install.packages("interactions")
-library(interactions)
-interact_plot(m1, "Sex", "Working.Memory", plot.points= TRUE, legend.main="Working Memory")
-#no evidence of an interaction
 
-#choose the one that makes the most sense for your paper!!
-
-#Centering your variables function #also can use mutate in dplyr
-center_scale = function(x){
-  scale(x, scale = FALSE) #scale argument - FALSE = z score  -  TRUE = 
+# But remember that we should center our predictors in multiple regression
+# center continuous predictors
+center_scale <-function(x) {
+    scale(x, scale = FALSE)
 }
+    
+# center
+d$WM.c <-scale(d$Working.Memory)
 
 library(psych)
+describe(d$WM.c) # sanity check centering worked
+m1 <-lm(Vocabulary.Score..Level.2 ~ Sex + Working.Memory, data = d); summary(m1)
 
-d$WM.c = scale(d$Working.Memory)
-describe(d)
 
+
+```
+
+# Visualizations with ggplot2 and interactions package
+```{r}
+
+# visualizing with ggplot2
+library(ggplot2)
+ggplot(d, aes(x = Working.Memory, y = Vocabulary.Score..Level.2, color = Sex)) + geom_point() + geom_smooth(method = "lm")
+
+
+# visualizing with interactions
+library(interactions)
+interact_plot(m1, "Sex", "Working.Memory", plot.points = TRUE, legend.main = "Working Memory")
+
+```
+
+
+
+# Moderation and interaction
+```{r}
 
 # Cool. It looks like working memory makes a difference, but sex does not. But what if the working memory effect was different for males and females? To look at that, we need to add an interaction term using the asterisk or multiply symbol.
 
 m2 <-lm(Vocabulary.Score..Level.2 ~ Sex*Working.Memory, data = d)
 summary(m2)
 
+
+# Coefficients:
+#                    Estimate Std. Error t value Pr(>|t|)  
+# (Intercept)          4.7951    13.6309   0.352   0.7278  
+# Sex                -10.3192    21.2444  -0.486   0.6312  
+# Working.Memory       0.4969     0.2338   2.125   0.0432 *
+# Sex:Working.Memory   0.1186     0.3645   0.326   0.7474    <---- this is the interaction
+
 # Great. So it looks like better working memory predicts better vocabulary scores, but not in a statistically significantly different way between males and females. Also, note that adjusted R-square for m2 is smaller than for m1. That means that model m1 is both more parsimonious (simpler) and explains more of the variance in the data, and those are both desirable outcomes!
+
+
+```
+
+# Visualizing the data for checking assumptions and robust coefficient estimation
+```{r}
+
+# check diagnostics
+par(mfrow = c(2, 2)) #create me 4 graphs in a 2x2 arragement
+plot(m2) #plot our "m2" model , 
+
+# plot 1 residuals vs fitted checks nonlinearity, equality of error variances <-looks funky, maybe a bad sign
+# plot 2 QQ plot for normality ->dece
+# plot 3 standardized plot to check homoskedasticity -> looks not great
+# plot 4 checks for influential cases -> cook's distance - influential data points, maybe not outliers.
+
+# possibly violating assumptions
+
+# OK. Our model 2 data are ugly--better use robust coefficient estimates so we can relax our assumptions a bit
+install.packages("misty")
+library(misty)
+
+robust.coef(m2, type = "HC4") # produces robust coefficient estimates using HC-4 (Cribari-Neto)
+
 ```
 
 
-## Graphing
-R is great for a lot of things, but perhaps my favorite is it's ability to produce killer graphs. For a handy cheat sheet for making graphs with ggplot2(), I refer you to this link: https://rstudio.com/wp-content/uploads/2015/03/ggplot2-cheatsheet.pdf
 
-Let's try making the two most important kind of graphs you'll want to produce in your research: boxplots (for mean differences and regression with only categorical predictors) and scatterplots (for correlations and regression with continuous predictors)
-
-
+# Advanced graphing -- rain cloud plots!
 ```{r Graphing}
 rm(list = ls())
 
@@ -140,31 +184,45 @@ d$test <-as.factor(d$test)
 
 ggplot(d, aes(x = test, y = score)) + geom_boxplot() # simple boxplot
 
+# Let's reorder the factors
+d$test <- factor(d$test, levels = c("pre", "post", "delayed"))
+ggplot(d, aes(x = test, y = score)) + geom_boxplot() # simple boxplot reordered
 
-# now let's add color and some nicer labels and make sure the y-axis represents the full range of possible scores
-ggplot(d, aes(x = test, y = score, color = test)) + geom_boxplot() + xlab("Test Type") + ylab("Test Score %") + ylim(0, 100)
+# load packages
+library(tidyverse)
+library(ggdist)
+library(ggthemes)
 
+# raincloud buildup
+library(ggplot2)
+ggplot(d, aes(x = test, y = score, fill = test)) # make a canvas for your graph
 
-# much better, but we might want to put these in a different order to represent the flow of time from pre- to post- to delayed-post test.
-d$test <-factor(d$test, levels = c('pre', 'post', 'delayed', order = TRUE))
+ggplot(d, aes(x = test, y = score, fill = test)) + 
+ stat_halfeye( # add half-violin plot (like a density plot) from {ggdist} package
+    # adjust bandwidth
+    adjust = 0.5,
+    # move to the right
+    justification = -0.2,
+    # remove the slab interval
+    .width = 0,
+    point_colour = NA
+  ) +
+  geom_boxplot(
+    width = 0.12,
+    # removing outliers
+    outlier.color = NA,
+    alpha = 0.5
+  ) +
+  stat_dots(
+    # plotting on left side
+    side = "left",
+    # adjusting position
+    justification = 1.1,
+    # adjust grouping (binning) of observations
+    binwidth = 0.25,
+    color = "blue" #change-a the color
+  )
 
-
-# now re-run the graph code for a nice graph
-ggplot(d, aes(x = test, y = score, color = test)) + geom_boxplot() + xlab("Test Type") + ylab("Test Score %") + ylim(0, 100)
-
-
-
-# Let's look at a scatterplot of our regression data, and let's add in the sex variable just for some practice with more complex graphs
-rm(list = ls())
-d <-read.csv("Stats Workbook.csv")
-d$Working.Memory <-as.numeric(d$Working.Memory)
-d$Sex <-as.factor(d$Sex)
-
-# facet wrap sex
-ggplot(d, aes(x = Working.Memory, y = Vocabulary.Score..Level.2)) + geom_point() + geom_smooth(method = "lm") + xlab("Working Memory Score") + ylab("Vocabulary Score at Level 2") + facet_wrap(~ Sex)
-
-# color sex
-ggplot(d, aes(x = Working.Memory, y = Vocabulary.Score..Level.2, fill = Sex, color = Sex)) + geom_point() + geom_smooth(method = "lm") + xlab("Working Memory Score") + ylab("Vocabulary Score at Level 2")
 
 ```
 

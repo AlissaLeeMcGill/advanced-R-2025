@@ -1,0 +1,170 @@
+---
+title: "Generalized Additive (Mixed) Models"
+author: "Phillip Hamrick, Ph.D."
+output: 
+  html_document: 
+    number_sections: yes
+    toc: yes
+    toc_float: 
+      collapsed: false
+editor_options: 
+  chunk_output_type: console
+---
+
+Reference for this tutorial: https://www.kojimiwa.com/miwabaayen_supplementarymat.html
+
+```{r}
+library(languageR, quietly = T) # for the LMM
+library(lme4, quietly = T) # for the LMM
+library(lmerTest, quietly = T) # for the LMM
+library(LMERConvenienceFunctions) # for the LMM
+library(mgcv, quietly = T) # for the GAMM
+library(itsadug, quietly = T) # for the GAMM
+library(qgam, quietly = T) # for the QGAM/QGAMM
+```
+
+
+We first demonstrate how the GAMM can be applied psychological/psycholinguistic research on bilingual processing, especially where we are trying to disentangle the processing of word form (e.g., how a word is spelled) from semantics (e.g., what a word means).
+
+We're reanalyzing lexical decision data from Dijkstra et al. (2010). The study tested 21 Dutch-English bilinguals reading 194 English words and 194 nonwords in a lexical decision experiment. We reanalyzed data for 189 target words for which Word Frequency data were available. The authors reported a substantial facilitation for identical cognates (i.e., words that have the same two forms in two languages, such as "menu" vs words with different forms "acid" = "zuur") on top of a facilitative effect of standardized orthographic similarity (hereafer OS). 
+```{r}
+
+# load the data
+load("dijkstra.rda")
+
+# investigate contents
+head(dijkstra)
+
+# we have columns for...
+# invRT = inverse-transformed reaction times 
+# Participant = participant ID
+# Word = stimulus
+# OS = orthographic similarity (rated on a 7-point Likert scale) between the English word and its Dutch equivalent
+# Frequency = how often the word occurs in a corpus (a big database of real language use)
+# Trial = by-participant smoothing; incorporates intercept estimates, so we don't need a by-subjects random intercept in the model, hence the zero value in the code
+# Ident = maximimum value of OS, making it categorical
+# RT = raw reaction times
+
+```
+
+
+We start with the LMM that we are familiar with. In the following LMM model, we replicate Dijkstra et al’s (2010) result with a rated orthographic similarity between target English words and their Dutch translation equivalent (OS) and a factor (Ident) with the two levels of Identical and NonIdentical. We also include word frequency as a covariate (Frequency).
+```{r}
+
+# relevel the data for reference level
+dijkstra$Ident = relevel(dijkstra$Ident, ref = "NonIdentical")
+
+# build an LMM 
+dijkstra.lmer = lmer(invRT ~ 
+                       OS + 
+                       Ident + 
+                       Frequency +
+                       (1 | Participant) + 
+                       (0 + Trial | Participant) + 
+                       (1 | Word) ,
+                     data = dijkstra)
+
+summary(dijkstra.lmer, corr=F)
+
+
+# visualize with plotLMER
+x = sort(unique(dijkstra$OS))
+y = -1.858546 +  (-0.023302*x) -0.119715
+plotLMER.fnc(dijkstra.lmer, pred="OS" ,ylim =c(-2.07, -1.8), xlabel = "OS", ylabel = "-1000/RT", main = "");rug(dijkstra$OS);points(x[length(x)],y[length(y)], col="red")
+
+
+# does adding a polynomial term help?
+dijkstra.lmer.poly2 = lmer(invRT ~ 
+                             OS +
+                             I(OS^2) + 
+                             Frequency +
+                             (1 | Participant) + 
+                             (0 + Trial | Participant) + 
+                             (1 | Word) ,
+                             data = dijkstra)
+summary(dijkstra.lmer.poly2, corr=F)
+
+plotLMER.fnc(dijkstra.lmer.poly2, pred="poly(OS, 2, raw = T)" ,ylim =c(-2.07, -1.8), xlabel = "OS", ylabel = "-1000/RT", main = ""); rug(dijkstra$OS)
+
+
+
+
+
+# The polynomial regression line captured the overall negative accelerating trend. However, the model lacks precision when pitted against the model with a strictly linear effect of OS in combination with the factor Ident; the substantial facilitation for Ident is no longer visible. When the factor Ident is included in the model, the polynomial regression line is no longer supported.
+dijkstra.lmer.poly3 = lmer(invRT  ~ 
+                             I(OS^2) + 
+                             Frequency +
+                             Ident +
+                             (1|Participant)+
+                             (0+Trial|Participant)+
+                             (1|Word), 
+                           data = dijkstra)
+summary(dijkstra.lmer.poly3, corr=F)
+```
+
+The generalized additive mixed model (GAMM) offers a toolkit for building a more precise statistical model for the present dataset. GAMMs can be used for both exploratory data analysis and for confirmatory data analysis. In the case of confirmatory data analysis, the researcher will have in mind a specific hypothesis about the functional form of a main effect or interaction. This hypothesis is then formalized in the form of a GAMM model, and once the data have been collected, a fit of this specific model to the data will straightforwardly reveal, first, whether a nonlinear effect is indeed present, and second, whether the effect has the predicted functional form. Apart from potential further refinements to the model as dictated by model criticism, no further model fitting will be necessary nor allowed. When the researcher has no clear theoretically motivated hypotheses about the shape of nonlinear effects, the analysis is necessarily exploratory in nature. In this case, incremental model building will typically afford the researcher more insight into the structure of a dataset than a model with the most complex structure that the data can tolerate. When adding in, step by step, more nonlinearities to the model, it is advisable to set alpha levels sufficiently low, for instance by using a Bonferroni correction for the number of models fitted, to safeguard against overvaluing effects.
+
+In what follows, we make use of the mgcv package (Wood, 2017). In the following model formula, smooth terms for a numerical predictor are included in the model by the s() function, using the thin plate regression spline. s(Word, bs = "re") indicates random intercepts for Word. s(Trial, Participant, bs="fs", m=1) indicates factor smooths (the non-linear equivalent of random intercepts and random slopes), with the intercepts also estimated for Participant.
+
+The mathematics underlying the penalization of basis functions and the mathematics underlying random effects are very similar in GAMMs, hence it makes sense mathematically that the same s() directive is used. There is an extensive technical literature on how to set up the basis functions for splines. In fact, there are many different kinds of splines, and how exactly the default splines are set up in MGCV requires at least one full page of mathematics. The reader is referred to Wood (2017) for details. Visual examples of how smooths are constructed out of basis functions are given in Baayen et al. (2017).
+
+Factor smooths implement shrinkage for wiggly curves, just as the LMM implements shrinkage for random intercepts and random slopes. Shrinkage is a statistical technique that ensures that model parameters for individual subjects (or items) are more conservative than would be the case if models were fit to subjects (or items) individually. In this way, the researcher is protected against overfitting, and predictions will be more precise for future observations on the same subjects (or items). The LMM implements shrinkage for random intercepts and random slopes, which protects the model against overfitting (see for detailed discussion Baayen, 2008). GAMMs likewise implement shrinkage for random-effect factors. Within the context of the GAMM, it is possible to set up the nonlinear equivalent of random intercepts and random slopes by means of special splines known as factor smooths. For factor smooths, shrinkage ensures that if the response does not covary with a given predictor, a factor smooth for that predictor will reduce to random intercepts.
+
+```{r}
+# construct a GA(M)M with bam
+dijkstra.gam = bam(invRT  ~     
+                     s(OS) +
+                     s(Frequency) +
+                     s(Trial, Participant, bs="fs", m=1) + # factor smooth for trial (continuous variable) and participant (factor variable)
+                     s(Word, bs="re"), # by-word or by-item random intercepts
+                   data = dijkstra, discrete = TRUE) # discrete requests algorithm that reduces computation time with little to no loss of model accuracy
+summary(dijkstra.gam)
+
+```
+
+Unlike the LMM, a GAMM summary has two parts: a parametric part for linear terms and a nonparametric part for smooth terms. The smooth terms comprise splines (as for Frequency), factor smooths (as for the trial by participant interaction), and random intercepts (as for Word). An F-test (detailed in Wood, 2013) is reported that clarifies whether a smooth term provides a noteworthy contribution to the model fit. Comparison of models with and without a given smooth term typically leads to the same conclusions as this F-test.
+
+We visualize the model output. The top left panel visualizes the effect of OS. With the thin plate regression spline for OS, the GAMM is flexible enough to capture the greater facilitation for identical cognates (the high edf value indicates greater wiggliness). The evaluation of GAMMs relies more on visualization than LMMs do. Where the confidence interval (which is empirical Bayes rather than frequentist) does not include zero, indicated by the red line, the effect is significant. The effect shown is the partial effect of the predictor, i.e., the contribution of the predictor to the fitted values, independently of the contributions of the other predictors in the model. The argument “residuals=F” suppresses the visualization of raw data. The top left panel shows the effect of OS, which looks as though it is null at most values until OS reaches its higher values > 1, where the effect on RT is to speed up reactions. The top right panel visualizes the effect of word frequency, which is strong in the middle range of log frequency, and tapers off at both tails of the distribution. The lower left panel presents the by-participant random curves for Trial, showing considerable variability between participants, with some showing stable behavior, with other showing nearly linear trends up or down (possibly indicators of fatigue or practice effects), and some showing undulating patterns suggestive of fluctuations in attention. The lower right panel presents a quantile-quantile plot for the model residuals, which roughly follow a normal distribution, as required. For a technical explanation of the summaries of the model, see Wood (2012).
+
+```{r}
+par(mfrow=c(2,2))
+plot(dijkstra.gam, select=1, shade.col="steelblue2", scheme=1, ylab="Partial effect",
+     ylim = c(-0.17, 0.1), residuals = F); abline(h=0, col="indianred")
+plot(dijkstra.gam, select=2, shade.col="steelblue2", scheme=1, ylab="Partial effect",  
+     ylim = c(-0.2, 0.3), residuals = F); abline(h=0, col="indianred")
+plot(dijkstra.gam, select=3, main=" ", ylab="Partial effect")
+plot(dijkstra.gam, select=4, main=" ", ylab="Effects")
+```
+
+If theoretically motivate, we can then include by-participant random slopes for Frequency and OS to see whether the model improves. This is equivalent to the specification in lme4: (0+Frequency|Participant). In other words, there may be different slopes for words of different frequencies by participant. What happens in mgcv is that a ridge penalty is put on the by-subject random slopes for frequency. For straightforward datasets with linear predictors, this leads to virtually the same estimates as given by lme4.
+```{r}
+# build GAMM with random slopes
+dijkstra.gam2 = bam(invRT ~  
+                      s(OS) + 
+                      s(Frequency) + 
+                      s(Participant, Trial, bs = "fs", m=1) + 
+                      s(Participant, Frequency, bs = "re") + 
+                      s(Participant, OS, bs = "re") + 
+                      s(Word, bs = "re") ,
+                    data = dijkstra, discrete=TRUE)
+summary(dijkstra.gam2)
+
+# compare m1 and m2
+compareML(dijkstra.gam, dijkstra.gam2) # With the by-participant random slopes for Frequency and OS, the model improved (fREML score decreases from 1063 to 1056). We also test whether the factor Ident will improve the model.
+
+dijkstra.gam3 = bam(invRT ~  
+                      Ident +
+                      s(OS) + 
+                      s(Frequency) +
+                      s(Participant, Trial, bs = "fs", m=1) + 
+                      s(Participant, Frequency, bs = "re") + 
+                      s(Participant, OS, bs = "re") + 
+                      s(Word, bs = "re"),
+                    data = dijkstra, discrete=TRUE)
+summary(dijkstra.gam3) # It is noteworthy that once the factor Ident is taken into account, the effect of OS becomes linear (i.e., the edf is 1), with a substantially increased p-value. 
+
+```
+
+For now, this is a sufficient introduction to GA(M)Ms. For more information, I highly encourage you to the continue the tutorial (which is what the above code is based on) by Miwa & Baayen (2021), the paper and code can be found here: https://kojimiwa.com/miwabaayen_supplementarymat.html
+
+You may continue with removing covariates and random effects to build the best fitting, most parsimonious model as we did in linear mixed effects models. Moreover, you may also specify the k term in the model to help minimize model overfit (e.g., by setting k to higher values; in the above code, for example, you could set s(OS, k = 5))
