@@ -40,11 +40,15 @@ d$Accuracy <-as.numeric(d$Accuracy)
 d <-na.omit(d) # remove all rows with N/A in them.
 
 # visualize subject-level data
-agg <-aggregate(Accuracy ~ Subject + Status + Manipulability, data = d, FUN = mean)
-ggplot(agg, aes(x = Status, y = Accuracy, color = Manipulability)) + geom_boxplot() 
+agg <-aggregate(Accuracy ~ Subject + Status + Manipulability, data = d, FUN = mean) #collect the means of accuracy for each subject/status/manip combination
+ggplot(agg, aes(x = Status, y = Accuracy, color = Manipulability)) + geom_boxplot() + geom_jitter()
 
 # build a model (only building one model here for demonstration purposes, but you can use maximal or parsimonious models as you would see fit)
 m1 <- glmer(Accuracy ~ Status*Manipulability + (1+Status+Manipulability|Subject) + (1|Item), data = d, family=binomial, control=glmerControl(optimizer="bobyqa")); summary(m1)
+
+#  each subject can have a slope for status and manipulability 
+#  intercept is in log odds
+#  can also use buildmer (takes a long ass time)
 
 ```
 A note on interpretation: 
@@ -66,6 +70,13 @@ d <-lexdec
 
 # first, recode the dependent variable "Correct"
 d$Correct <-ifelse(d$Correct == "correct",1,0)
+
+# if(d$Correct == "correct"){
+#   d$Correct = "1"
+# }else{
+#    d$Correct = "0"
+# }
+ 
 
 # let's center frequency
 d.items <-select(d, Word, Frequency) %>% unique() 

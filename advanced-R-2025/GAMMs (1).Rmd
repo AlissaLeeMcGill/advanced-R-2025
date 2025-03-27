@@ -14,13 +14,13 @@ editor_options:
 Reference for this tutorial: https://www.kojimiwa.com/miwabaayen_supplementarymat.html
 
 ```{r}
-library(languageR) # for the LMM
-library(lme4) # for the LMM
-library(lmerTest) # for the LMM
+library(languageR, quietly = T) # for the LMM
+library(lme4, quietly = T) # for the LMM
+library(lmerTest, quietly = T) # for the LMM
 library(LMERConvenienceFunctions) # for the LMM
-library(mgcv) # for the GAMM
-library(itsadug) # for the GAMM
-library(qgam) # for the QGAM/QGAMM
+library(mgcv, quietly = T) # for the GAMM
+library(itsadug, quietly = T) # for the GAMM
+library(qgam, quietly = T) # for the QGAM/QGAMM
 ```
 
 
@@ -30,13 +30,13 @@ We're reanalyzing lexical decision data from Dijkstra et al. (2010). The study t
 ```{r}
 
 # load the data
-load("dijkstra.rda") #rda is an r document, an r file. so we can ue load
+load("dijkstra.rda")
 
 # investigate contents
 head(dijkstra)
 
 # we have columns for...
-# invRT = inverse-transformed reaction times #reaction time almost always skewed, so we do this to help with that
+# invRT = inverse-transformed reaction times 
 # Participant = participant ID
 # Word = stimulus
 # OS = orthographic similarity (rated on a 7-point Likert scale) between the English word and its Dutch equivalent
@@ -52,31 +52,34 @@ We start with the LMM that we are familiar with. In the following LMM model, we 
 ```{r}
 
 # relevel the data for reference level
-dijkstra$Ident = relevel(dijkstra$Ident, ref = "NonIdentical") # we want the Nonidentical trials to be the baseline for the cat var
+dijkstra$Ident = relevel(dijkstra$Ident, ref = "NonIdentical")
 
 # build an LMM 
 dijkstra.lmer = lmer(invRT ~ 
-                       OS + 
-                       Ident + 
+                       OS + # orthographic similarity
+                       Ident + # identity categorical
                        Frequency +
                        (1 | Participant) + 
-                       (0 + Trial | Participant) + # don't need random intercepts  #each trial has own slope for each participant
+                       (0 + Trial | Participant) + 
                        (1 | Word) ,
                      data = dijkstra)
 
-summary(dijkstra.lmer, corr=F) # don't include the correlation part, turn it off in the output
+summary(dijkstra.lmer, corr=F)
 
 
 # visualize with plotLMER
-x = sort(unique(dijkstra$OS))
-y = -1.858546 +  (-0.023302*x) -0.119715
-plotLMER.fnc(dijkstra.lmer, pred="OS" ,ylim =c(-2.07, -1.8), xlabel = "OS", ylabel = "-1000/RT", main = "");rug(dijkstra$OS);points(x[length(x)],y[length(y)], col="red")
+# x = sort(unique(dijkstra$OS)) # sort stimuli
+# y = -1.858546 +  (-0.023302*x) -0.119715
+# plotLMER.fnc(dijkstra.lmer, pred="OS" ,ylim =c(-2.07, -1.8), xlabel = "OS", ylabel = "-1000/RT", main = "");rug(dijkstra$OS);points(x[length(x)],y[length(y)], col="red") # takes output of above model
 
+
+
+########## IS IT POSSIBLE THAT THE DATA AREN'T LINEAR?
 
 # does adding a polynomial term help?
 dijkstra.lmer.poly2 = lmer(invRT ~ 
                              OS +
-                             I(OS^2) + #add a polynomial term (power of 2)
+                             I(OS^2) + # adds the polynomial term (power of 2)
                              Frequency +
                              (1 | Participant) + 
                              (0 + Trial | Participant) + 
@@ -84,9 +87,10 @@ dijkstra.lmer.poly2 = lmer(invRT ~
                              data = dijkstra)
 summary(dijkstra.lmer.poly2, corr=F)
 
+# we'll need this version for graphing
 dijkstra.lmer.poly2 = lmer(invRT ~ 
-                             OS +
-                             poly(OS, 2, raw=T) + #add a polynomial term (power of 2) # need this way for graphing
+                             poly(OS, 2, raw = T) + 
+                             # This is the same as OS + I(OS^2) 
                              Frequency +
                              (1 | Participant) + 
                              (0 + Trial | Participant) + 
@@ -94,12 +98,14 @@ dijkstra.lmer.poly2 = lmer(invRT ~
                              data = dijkstra)
 summary(dijkstra.lmer.poly2, corr=F)
 
-
-plotLMER.fnc(dijkstra.lmer.poly2, pred="poly(OS, 2, raw = T)" ,ylim =c(-2.07, -1.8), xlabel = "OS", ylabel = "-1000/RT", main = ""); rug(dijkstra$OS)
-
+plotLMER.fnc(dijkstra.lmer.poly2, pred="poly(OS, 2, raw = T)" ,ylim =c(-2.07, -1.8), xlabel = "OS", ylabel = "-1000/RT", main = ""); rug(dijkstra$OS) # this code requires the second version of the polynomial model code
 
 
-# The polynomial regression line captured the overall negative accelerating trend. However, the model lacks precision when pitted against the model with a strictly linear effect of OS in combination with the factor Ident; the substantial facilitation for Ident is no longer visible. When the factor Ident is included in the model, the polynomial regression line is no longer supported.
+
+
+
+
+# The polynomial regression line captured the overall negative accelerating trend. However, the model lacks precision when pitted against the model with a strictly linear effect of OS in combination with the factor Ident; the substantial facilitation for Ident is no longer visible. When the factor Ident is included in the model, the polynomial regression line is no longer supported. So it's not clear the best way to proceed with classical linear vs. polynomial regression and the model below shows that the polynomial isn't significant with Ident included.
 dijkstra.lmer.poly3 = lmer(invRT  ~ 
                              I(OS^2) + 
                              Frequency +
@@ -111,7 +117,9 @@ dijkstra.lmer.poly3 = lmer(invRT  ~
 summary(dijkstra.lmer.poly3, corr=F)
 ```
 
-The generalized additive mixed model (GAMM) offers a toolkit for building a more precise statistical model for the present dataset. GAMMs can be used for both exploratory data analysis and for confirmatory data analysis. In the case of confirmatory data analysis, the researcher will have in mind a specific hypothesis about the functional form of a main effect or interaction. This hypothesis is then formalized in the form of a GAMM model, and once the data have been collected, a fit of this specific model to the data will straightforwardly reveal, first, whether a nonlinear effect is indeed present, and second, whether the effect has the predicted functional form. Apart from potential further refinements to the model as dictated by model criticism, no further model fitting will be necessary nor allowed. When the researcher has no clear theoretically motivated hypotheses about the shape of nonlinear effects, the analysis is necessarily exploratory in nature. In this case, incremental model building will typically afford the researcher more insight into the structure of a dataset than a model with the most complex structure that the data can tolerate. When adding in, step by step, more nonlinearities to the model, it is advisable to set alpha levels sufficiently low, for instance by using a Bonferroni correction for the number of models fitted, to safeguard against overvaluing effects.
+The generalized additive mixed model (GAMM) offers a toolkit for building a more precise statistical model for the present dataset. GAMMs can be used for both exploratory data analysis and for confirmatory data analysis. In the case of confirmatory data analysis, the researcher will have in mind a specific hypothesis about the functional form of a main effect or interaction. This hypothesis is then formalized in the form of a GAMM model, and once the data have been collected, a fit of this specific model to the data will straightforwardly reveal, first, whether a nonlinear effect is indeed present, and second, whether the effect has the predicted functional form. 
+
+Apart from potential further refinements to the model as dictated by model criticism, no further model fitting will be necessary nor allowed. When the researcher has no clear theoretically motivated hypotheses about the shape of nonlinear effects, the analysis is necessarily exploratory in nature. In this case, incremental model building will typically afford the researcher more insight into the structure of a dataset than a model with the most complex structure that the data can tolerate. When adding in, step by step, more nonlinearities to the model, it is advisable to set alpha levels sufficiently low, for instance by using a Bonferroni correction for the number of models fitted, to safeguard against overvaluing effects.
 
 In what follows, we make use of the mgcv package (Wood, 2017). In the following model formula, smooth terms for a numerical predictor are included in the model by the s() function, using the thin plate regression spline. s(Word, bs = "re") indicates random intercepts for Word. s(Trial, Participant, bs="fs", m=1) indicates factor smooths (the non-linear equivalent of random intercepts and random slopes), with the intercepts also estimated for Participant.
 
@@ -124,7 +132,7 @@ Factor smooths implement shrinkage for wiggly curves, just as the LMM implements
 dijkstra.gam = bam(invRT  ~     
                      s(OS) +
                      s(Frequency) +
-                     s(Trial, Participant, bs="fs", m=1) + # factor smooth for trial (continuous variable) and participant (factor variable)
+                     s(Trial, Participant, bs="fs", m = 1) + # factor smooth for trial (continuous variable) and participant (factor variable); m changes the penalty on the splines--m = 1 is less restrictive, allowing random effects to explain as much variance as possible
                      s(Word, bs="re"), # by-word or by-item random intercepts
                    data = dijkstra, discrete = TRUE) # discrete requests algorithm that reduces computation time with little to no loss of model accuracy
 summary(dijkstra.gam)
@@ -133,17 +141,28 @@ summary(dijkstra.gam)
 
 Unlike the LMM, a GAMM summary has two parts: a parametric part for linear terms and a nonparametric part for smooth terms. The smooth terms comprise splines (as for Frequency), factor smooths (as for the trial by participant interaction), and random intercepts (as for Word). An F-test (detailed in Wood, 2013) is reported that clarifies whether a smooth term provides a noteworthy contribution to the model fit. Comparison of models with and without a given smooth term typically leads to the same conclusions as this F-test.
 
-We visualize the model output. The top left panel visualizes the effect of OS. With the thin plate regression spline for OS, the GAMM is flexible enough to capture the greater facilitation for identical cognates (the high edf value indicates greater wiggliness). The evaluation of GAMMs relies more on visualization than LMMs do. Where the confidence interval (which is empirical Bayes rather than frequentist) does not include zero, indicated by the red line, the effect is significant. The effect shown is the partial effect of the predictor, i.e., the contribution of the predictor to the fitted values, independently of the contributions of the other predictors in the model. The argument “residuals=F” suppresses the visualization of raw data. The top left panel shows the effect of OS, which looks as though it is null at most values until OS reaches its higher values > 1, where the effect on RT is to speed up reactions. The top right panel visualizes the effect of word frequency, which is strong in the middle range of log frequency, and tapers off at both tails of the distribution. The lower left panel presents the by-participant random curves for Trial, showing considerable variability between participants, with some showing stable behavior, with other showing nearly linear trends up or down (possibly indicators of fatigue or practice effects), and some showing undulating patterns suggestive of fluctuations in attention. The lower right panel presents a quantile-quantile plot for the model residuals, which roughly follow a normal distribution, as required. For a technical explanation of the summaries of the model, see Wood (2012).
+We visualize the model output. The top left panel visualizes the effect of OS. With the thin plate regression spline for OS, the GAMM is flexible enough to capture the greater facilitation for identical cognates (the high edf value indicates greater wiggliness). The evaluation of GAMMs relies more on visualization than LMMs do. Where the confidence interval (which is empirical Bayes rather than frequentist) does not include zero, indicated by the red line, the effect is significant. The effect shown is the partial effect of the predictor, i.e., the contribution of the predictor to the fitted values, independently of the contributions of the other predictors in the model. The argument “residuals=F” suppresses the visualization of raw data. 
+
+The top left panel shows the effect of OS, which looks as though it is null at most values until OS reaches its higher values > 1, where the effect on RT is to speed up reactions. 
+
+The top right panel visualizes the effect of word frequency, which is strong in the middle range of log frequency, and tapers off at both tails of the distribution. 
+
+The lower left panel presents the by-participant random curves for Trial, showing considerable variability between participants, with some showing stable behavior, with other showing nearly linear trends up or down (possibly indicators of fatigue or practice effects), and some showing undulating patterns suggestive of fluctuations in attention. 
+
+The lower right panel presents a quantile-quantile plot for the model residuals, which roughly follow a normal distribution. For a technical explanation of the summaries of the model, see Wood (2012).
 
 ```{r}
 par(mfrow=c(2,2))
+
+# select = tells us which variable in the model
 plot(dijkstra.gam, select=1, shade.col="steelblue2", scheme=1, ylab="Partial effect",
-     ylim = c(-0.17, 0.1), residuals = F); abline(h=0, col="indianred")
+     ylim = c(-0.17, 0.1), residuals = F); abline(h=0, col="indianred") # orthographic similarity has a big effect but only at very high similarity values
 plot(dijkstra.gam, select=2, shade.col="steelblue2", scheme=1, ylab="Partial effect",  
      ylim = c(-0.2, 0.3), residuals = F); abline(h=0, col="indianred")
 plot(dijkstra.gam, select=3, main=" ", ylab="Partial effect")
 plot(dijkstra.gam, select=4, main=" ", ylab="Effects")
 ```
+
 
 If theoretically motivate, we can then include by-participant random slopes for Frequency and OS to see whether the model improves. This is equivalent to the specification in lme4: (0+Frequency|Participant). In other words, there may be different slopes for words of different frequencies by participant. What happens in mgcv is that a ridge penalty is put on the by-subject random slopes for frequency. For straightforward datasets with linear predictors, this leads to virtually the same estimates as given by lme4.
 ```{r}
@@ -158,8 +177,15 @@ dijkstra.gam2 = bam(invRT ~
                     data = dijkstra, discrete=TRUE)
 summary(dijkstra.gam2)
 
+# fREML = 1055.9 model comparison
+
+
 # compare m1 and m2
-compareML(dijkstra.gam, dijkstra.gam2) # With the by-participant random slopes for Frequency and OS, the model improved (fREML score decreases from 1063 to 1056). We also test whether the factor Ident will improve the model.
+compareML(dijkstra.gam, dijkstra.gam2) # Compare with maximum likelihood instead of ANOVA. With the by-participant random slopes for Frequency and OS, the model improved (fREML score decreases from 1063 to 1056). We also test whether the factor Ident will improve the model.
+
+# AIC difference: 24.17, model dijkstra.gam2 has lower AIC.-->dijkstra.gam2 improves fit
+#if the new model is significantly different , use it
+# if the new model is not sig diff, use the most parsimonious model
 
 dijkstra.gam3 = bam(invRT ~  
                       Ident +

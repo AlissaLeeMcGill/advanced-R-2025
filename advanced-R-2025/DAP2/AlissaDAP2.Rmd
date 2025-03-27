@@ -1,0 +1,74 @@
+---
+title: "AlissaDAP2"
+author: "Alissa McGill"
+output: html_document
+date: '2023-03-26'
+editor_options: 
+  chunk_output_type: console
+---
+
+<!-- The data set consists of three files: lexical decision data for correct responses to real words (lexical decision cleaned.csv), word frequency data (frequency.CD.csv), and declarative memory data (declarative memory abilities.csv). Your goal is to analyze reaction times in the lexical decision data (logRT) as a function of word frequency (WF), and declarative memory abilities (DecMem). Each participant sees words of differing frequencies, meaning you can have a WF random effect by Subject. Do not include DecMem in the random effects for Word because it will cause the model to not converge. -->
+
+
+<!--  Also, be mindful of the long vs wide format requirements of the different functions in R. -->
+
+
+```{r}
+# load libraries
+library(psych)
+library(languageR)
+library(ggplot2)
+library(lme4) #mixed effects models!
+library(dplyr)
+library(tidyr)
+```
+
+```{r Load Data}
+
+lexicalDecisionData =  read.csv("lexical decision cleaned-1.csv")
+wordFrequenyData = read.csv("frequency.CD.csv")
+decMemAbilityData =read.csv("declarative memory abilities.csv")
+
+
+```
+
+```{r Compute descriptive statistics for the main variables in the data}
+
+describe(lexicalDecisionData$logRT)
+describe(wordFrequenyData$WF)
+describe(decMemAbilityData$DecMem)
+
+```
+
+```{r Histograms for any continuous/intervallic data}
+
+ggplot(lexicalDecisionData, aes(x=logRT)) + geom_histogram(fill = "darkolivegreen2")
+
+ggplot(wordFrequenyData, aes(x=WF)) + geom_histogram(fill = "cyan2")
+
+ggplot(decMemAbilityData, aes(x=DecMem)) + geom_histogram(fill = "deepskyblue1")
+
+```
+
+```{r Center predictor variables when appropriate (ideal for continuous/intervallic data; optional for categorical data) }
+
+#center Word Frequency
+
+#center Declarative Memory
+
+
+```
+
+```{r}
+#	Compute the appropriate mixed effects model (linear or logistic—only do a GAMM) and be sure to specify in your code which kind of random effects structure decisions you made and why.
+
+
+```
+
+```{r}
+# Create at least 1 boxplot or violin plot or 1 scatter plot to visualize what you found in your model (even if it is a null result).
+
+
+```
+
+

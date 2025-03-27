@@ -25,7 +25,7 @@ library(car)
 
 ```{r Load the data }
 # load data
-eduInterventionData = read.csv("data.csv")
+eduInterventionData = read.csv("../DAP1/data.csv")
 
 eduInterventionDataLong = gather(eduInterventionData,
                                  condition, # control, instructed, feedback
