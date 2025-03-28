@@ -9,10 +9,6 @@ editor_options:
 
 <!-- The data set consists of three files: lexical decision data for correct responses to real words (lexical decision cleaned.csv), word frequency data (frequency.CD.csv), and declarative memory data (declarative memory abilities.csv). Your goal is to analyze reaction times in the lexical decision data (logRT) as a function of word frequency (WF), and declarative memory abilities (DecMem). Each participant sees words of differing frequencies, meaning you can have a WF random effect by Subject. Do not include DecMem in the random effects for Word because it will cause the model to not converge. -->
 
-
-<!--  Also, be mindful of the long vs wide format requirements of the different functions in R. -->
-
-
 ```{r}
 # load libraries
 library(psych)
@@ -21,6 +17,7 @@ library(ggplot2)
 library(lme4) #mixed effects models!
 library(dplyr)
 library(tidyr)
+library(lmerTest)
 ```
 
 ```{r Load Data}
@@ -52,22 +49,64 @@ ggplot(decMemAbilityData, aes(x=DecMem)) + geom_histogram(fill = "deepskyblue1")
 
 ```{r Center predictor variables when appropriate (ideal for continuous/intervallic data; optional for categorical data) }
 
-#center Word Frequency
+#Create a new column(WF_centered) in wordFrequencyData to hold centered word frequency 
+wordFrequenyData = mutate(wordFrequenyData, WF_centered = as.numeric(scale(WF, scale = TRUE)))
+describe(wordFrequenyData$WF_centered) # mean = 0, SD = 1; perfect!  
 
-#center Declarative Memory
+#Create a new column(DecMem_centered) in decMemAbilityData to hold centered declarative memory
+decMemAbilityData=mutate(decMemAbilityData, DecMem_centered = as.numeric(scale(DecMem, scale = TRUE)))
+describe(decMemAbilityData$DecMem_centered) # mean = 0, SD = 1; perfect!  
+
+# Merge our wordFrequenyData and decMemAbilityData into lexicalDecisionData
+lexicalDecisionData = left_join(lexicalDecisionData, wordFrequenyData, by = "Word")
+lexicalDecisionData = left_join(lexicalDecisionData, decMemAbilityData, by = "Subject")
+
+```
+
+```{r Linear Mixed Effects Model}
+
+#Try a few models
+
+# let each person have their own intercept  (1|Subject)
+# let each word have its own intercept (1|Word)
+m1 <-lmer(logRT ~ WF_centered + DecMem_centered + (1|Subject) + (1|Word), data = lexicalDecisionData, REML = FALSE); summary(m1)
+
+#add in varied slopes for WF by subject (1 + WF_centered|Subject)
+m2 <-lmer(logRT ~ WF_centered + DecMem_centered + (1 + WF_centered|Subject) + (1|Word), data = lexicalDecisionData, REML = FALSE); summary(m2) 
+
+anova(m1, m2) # model 2 is not significantly better then model 1, keep parsimonious model 1.
+
+#I also tried varied slopes for Declarative memory by subject (1 + DecMem_centered|Subject)
+# This one does not converge (as you noted in the instructions) but I wanted to see what happened
+#m3 <-lmer(logRT ~ WF_centered + DecMem_centered + (1 + DecMem_centered|Subject) + (1|Word), data = lexicalDecisionData, REML = FALSE); summary(m3)
+
+#Final model choice
+m1 <-lmer(logRT ~ WF_centered + DecMem_centered + (1|Subject) + (1|Word), data = lexicalDecisionData, REML = TRUE); summary(m1)
 
 
 ```
 
-```{r}
-#	Compute the appropriate mixed effects model (linear or logistic—only do a GAMM) and be sure to specify in your code which kind of random effects structure decisions you made and why.
+```{r Create new variable of DecMem as a factor so we can see our groups to graph}
 
+lexicalDecisionData$DecMemFactor <-as.factor(lexicalDecisionData$DecMem) #create new variable of DecMem as a factor so we can see our groups to graph 
 
-```
+#a scatter plot!
+ggplot(lexicalDecisionData, aes(x = WF, y = logRT, color = DecMemFactor)) + geom_point() + geom_smooth(method = "lm", se = F) #se=F to remove the grey error shading so we can actually see things
 
-```{r}
-# Create at least 1 boxplot or violin plot or 1 scatter plot to visualize what you found in your model (even if it is a null result).
+#a violin plot!
+ggplot(lexicalDecisionData, aes(x = WF, y = logRT, color = DecMemFactor)) + geom_violin() + geom_smooth(method = "lm", se=F)
 
+#a box plot!
+ggplot(lexicalDecisionData, aes(x = WF, y = logRT, color = DecMemFactor)) + geom_boxplot() + geom_smooth(method = "lm", se=F)
+
+#just the boxes?
+ggplot(lexicalDecisionData, aes(x = WF, y = logRT, color = DecMemFactor)) + geom_boxplot()
+
+#graph the other way just for fun?
+lexicalDecisionData$WFFactor <-as.factor(lexicalDecisionData$WF)#create new variable of WF as a factor so we can see our groups to graph
+ggplot(lexicalDecisionData, aes(x = DecMem, y = logRT, color = WFFactor)) + geom_point() + geom_smooth(method = "lm", se = F) 
+
+#Graphing is fun :)
 
 ```
 
