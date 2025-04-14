@@ -1,0 +1,231 @@
+---
+title: "Machine learning"
+author: Phillip Hamrick, Ph.D., Principal Investigator, Memory and Language Laboratory, Department of Psychological Sciences, Kent State University
+  Laboratory
+date: "3/27/2023"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+## load packages and data
+```{r}
+# load packages
+library(tidyverse)
+library(tidymodels)
+
+# load data
+d <-read.csv("machine.learning.dementiabank.csv")
+
+# clean
+d <-subset(d, select = c(group, age, educ))
+d$group <-as.factor(d$group)
+
+```
+
+## logistic model with resampling (bootstrap)
+We'll model group classification (AD vs Intact) based on age and education.
+```{r}
+
+### PREPARE
+
+# set random replicable start point
+set.seed(0717)
+
+# setup training and testing data sets
+AD_split <-initial_split(d, strata = group)
+AD_train <-training(AD_split)
+AD_test <-testing(AD_split)
+
+# set random replicable start point for bootstrap resamples of the training data to evaluate model
+set.seed(0717)
+
+# our procedure for training is take the 196 training items, build a model, then evaluate against ~ 33% of the training data randomly boostrap resampled from those 196 training items
+AD_boot <-bootstraps(AD_train)
+
+# examine
+AD_boot 
+
+
+### SET TIDYMODEL WORKFLOW
+
+# logistic model spec (this just says create specifications for a model, the type of which is logistic with a glm engine)
+glm_spec <-logistic_reg() %>%
+  set_engine("glm")
+
+# create a workflow (specifies the formula applied to each training/eval set)
+AD_wf <-workflow() %>%
+  add_formula(group ~ .) # little . means "use all the predictors". or use education + age
+
+# apply model specs and workflow to the training/eval data
+glm_rs <-AD_wf %>%
+  add_model(glm_spec) %>%
+  fit_resamples(
+    resamples = AD_boot,
+    control = control_resamples(save_pred = TRUE)
+  )
+
+# examine
+glm_rs 
+
+# training/evaluation fit
+collect_metrics(glm_rs) 
+
+
+### CHECK GENERALIZATION TO TEST DATA
+
+## testing set
+AD_final <-AD_wf %>%
+  add_model(glm_spec) %>%
+  last_fit(AD_split)
+
+AD_final
+
+collect_metrics(AD_final) # classification accuracy = 71%
+
+collect_predictions(AD_final) %>%
+  conf_mat(group, .pred_class) # Sensitivity = 31/(31+9) = .775; Specificity = 16/(16+10) = .615
+
+```
+
+
+## random forests with resampling
+```{r}
+# load packages
+library(tidyverse)
+library(tidymodels)
+
+# load data
+d <-read.csv("machine.learning.dementiabank.csv")
+
+# clean
+d <-subset(d, select = c(group, age, educ))
+d$group <-as.factor(d$group)
+
+
+
+
+# set random replicable start point
+set.seed(0717)
+
+# setup training and testing data sets
+AD_split <-initial_split(d, strata = group)
+AD_train <-training(AD_split)
+AD_test <-testing(AD_split)
+
+# set random replicable start point for bootstrap resamples of the training data to evaluate model
+set.seed(0717)
+AD_boot <-bootstraps(AD_train)
+
+AD_boot
+
+
+# random forest spec
+rf_spec <- rand_forest() %>%
+  set_mode("classification") %>%
+  set_engine("ranger")
+
+# create a workflow
+AD_wf <-workflow() %>%
+  add_formula(group ~ .)
+
+# add a model and fit to each resample: random forests
+rf_rs <-AD_wf %>%
+  add_model(rf_spec) %>%
+  fit_resamples(
+    resamples = AD_boot,
+    control = control_resamples(save_pred = TRUE)
+    )
+
+rf_rs
+
+## examine results
+collect_metrics(rf_rs) 
+
+
+## testing set
+AD_final2 <-AD_wf %>%
+  add_model(rf_spec) %>%
+  last_fit(AD_split)
+
+AD_final2
+
+collect_metrics(AD_final2) # classification accuracy = 72.7%
+
+collect_predictions(AD_final2) %>%
+  conf_mat(group, .pred_class) # Sensitivity = 31/(31+9) = .775; Specificity = 17/(17+9) = .653
+
+```
+The random forest model provides just a slightly better accuracy via increased specificity.
+
+## random forests with cross-fold validation 
+```{r}
+# load packages
+library(tidyverse)
+library(tidymodels)
+library(modeldata)
+
+## PREPARE FOR CV
+# load data
+d <-read.csv("machine.learning.dementiabank.csv")
+
+# clean
+x <-subset(d, select = c(group, age, educ))
+x$group <-as.factor(d$group)
+
+# how many obs?
+x %>% dim() # 262 observations, 3 columns
+
+# set seed
+set.seed(0717)
+
+# create 10 equally-sized folds
+folds <- vfold_cv(data = x, # use data frame x
+                  v = 10) # make 10 folds
+
+folds # check resulting folds; note 235 + 27 = 262 and 236 + 26 = 262; so we have the right total number of observations; the data are being split into ~ 90/10 groups
+
+analysis(folds$splits[[1]]) # shows which items used for training in a given fold
+assessment(folds$splits[[1]]) # shows which items used for testing in a given fold
+
+
+
+### BUILD A WORKFLOW WITH
+# Random Forest Specification with parsnip package
+
+# random forest specs
+rf_spec <- parsnip::rand_forest(trees = 100) %>% # number of trees in ensemble
+  parsnip::set_engine("ranger") %>% # use ranger package for random forests
+  parsnip::set_mode("classification") # as opposed to linear regression
+
+# bundle with formula
+rf_workflow <-workflow() %>%
+  add_model(rf_spec) %>% # take our random forest specs from above
+  add_formula(group ~ .) 
+
+
+
+
+### Conduct 10-fold cross-validation
+
+# set seed
+set.seed(0717)
+
+# refit samples for 10-fold cross-validation
+rf_10foldCV <- fit_resamples(object = rf_workflow, # workflow from above
+                             resamples = folds) # 10 folds above
+
+# view basic output
+rf_10foldCV # cool, but not informative :)
+
+# look at the .metrics column
+rf_10foldCV$.metrics
+
+# you can also look at things with collect_metrics()
+rf_10foldCV %>%
+  collect_metrics(summarize = FALSE) # shows both accuracy and ROC-AUC
+
+rf_10foldCV %>%
+  collect_metrics(summarize = TRUE) # shows overall averaged values for both accuracy and ROC-AUC
+
+```
