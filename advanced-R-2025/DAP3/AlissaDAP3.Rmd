@@ -1,0 +1,99 @@
+---
+title: "AlissaDAP3"
+author: "Alissa McGill"
+date: "2025-04-14"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+## R Markdown
+
+For DAP3, you will use either a logistic or random forest classifier method to model mortality data available HERE Download HERE. These mortality data indicate participants’ self-rated sex and age on January 1, 2015 as well as whether the client passed away before January 1, 2020.
+
+Self-reported sex is coded as 0 (female) and 1 (male). Self-reported age is reported as a whole integer of the participants’ current age. Mortality (died) is coded as 0 (not dead) and 1 (dead).
+
+Using R/RStudio, complete the following steps. When you are done, save the R code as a .Rmd file and submit that to the Canvas submission portal.
+
+1. Build a machine learning classifier model of the data with mortality (“died”) as an outcome variable and self-reported sex (“sex”) and self-reported age (“age”) as predictor variables. You may use either logistic or random forests model.
+2.Fit the model to training data using bootstrap resampling and report the model fit (accuracy and ROC-AUC) to the evaluation data using “collect_metrics()”
+3.Fit the model to the testing data and report the model fit (accuracy and ROC-AUC) to the evaluation data using “collect_metrics()”
+4.Compute sensitivity and specificity by getting R to produce a confusion matrix with “collect_predictions()”
+
+
+```{r Load packages and Data}
+library(tidyverse)
+library(tidymodels)
+
+# load data
+mortalityData = read.csv("nursingmortalitydata.csv")
+
+```
+
+
+
+```{r  Build a machine learning classifier model}
+# set random replicable start point
+set.seed(1127)
+
+# setup training and testing data sets
+mortalityData_split = initial_split(mortalityData, strata = group). ###3 we gotta look up this strata 
+mortalityData_train = training(mortalityData_split)
+mortalityData_test = testing(mortalityData_split)
+
+```
+
+```{r Fit the model to training data using bootstrap resampling and report the model fit}
+mortality_boot = bootstraps(mortalityData_train)
+
+# examine
+mortality_boot 
+
+
+### SET TIDYMODEL WORKFLOW
+
+# logistic model spec -  logistic regression with a glm engine)
+logisticModel_spec = set_engine(object = logistic_reg(), engine = "glm")
+
+
+# create a workflow (specifies the formula applied to each training/eval set)
+mortality_workFlow = add_formula(workflow(), group ~ .)
+
+
+# apply model specs and workflow to the training/eval data
+glm_rs <-mortality_workFlow %>%
+  add_model(logisticModel_spec) %>%
+  fit_resamples(
+    resamples = mortality_boot,
+    control = control_resamples(save_pred = TRUE)
+  )
+
+# examine
+glm_rs 
+
+# training/evaluation fit
+collect_metrics(glm_rs) 
+
+
+### CHECK GENERALIZATION TO TEST DATA
+
+## testing set
+mortality_final <-mortality_workFlow %>%
+  add_model(logisticModel_spec) %>%
+  last_fit(mortalityData_split)
+
+mortality_final
+
+collect_metrics(mortality_final) 
+
+collect_predictions(mortality_final) %>%
+  conf_mat(group, .pred_class) 
+```
+
+```{r Fit the model to the testing data and report the model fit}
+
+```
+
+```{r Compute sensitivity and specificity }
+
+```

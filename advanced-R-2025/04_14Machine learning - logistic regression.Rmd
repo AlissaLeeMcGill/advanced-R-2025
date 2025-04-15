@@ -23,7 +23,7 @@ d$group <-as.factor(d$group)
 
 ```
 
-## logistic model with resampling (bootstrap)
+## logistic model with resampling
 We'll model group classification (AD vs Intact) based on age and education.
 ```{r}
 
@@ -55,7 +55,7 @@ glm_spec <-logistic_reg() %>%
 
 # create a workflow (specifies the formula applied to each training/eval set)
 AD_wf <-workflow() %>%
-  add_formula(group ~ .) # little . means "use all the predictors". or use education + age
+  add_formula(group ~ .)
 
 # apply model specs and workflow to the training/eval data
 glm_rs <-AD_wf %>%
@@ -94,7 +94,6 @@ collect_predictions(AD_final) %>%
 # load packages
 library(tidyverse)
 library(tidymodels)
-library(ranger)
 
 # load data
 d <-read.csv("machine.learning.dementiabank.csv")
@@ -102,6 +101,8 @@ d <-read.csv("machine.learning.dementiabank.csv")
 # clean
 d <-subset(d, select = c(group, age, educ))
 d$group <-as.factor(d$group)
+
+
 
 
 # set random replicable start point
@@ -119,14 +120,10 @@ AD_boot <-bootstraps(AD_train)
 AD_boot
 
 
-# random forest spec. # https://parsnip.tidymodels.org/reference/rand_forest.html
+# random forest spec
 rf_spec <- rand_forest() %>%
   set_mode("classification") %>%
   set_engine("ranger")
-
-
-#rf_spec = rand_forest(mode="classification", engine = "ranger")
-
 
 # create a workflow
 AD_wf <-workflow() %>%
@@ -157,7 +154,6 @@ collect_metrics(AD_final2) # classification accuracy = 72.7%
 
 collect_predictions(AD_final2) %>%
   conf_mat(group, .pred_class) # Sensitivity = 31/(31+9) = .775; Specificity = 17/(17+9) = .653
-#ROC-AUC - guessing =.5 , .7-.8 = pretty good , .8-.9 excellent , we are at 0.809! neat
 
 ```
 The random forest model provides just a slightly better accuracy via increased specificity.
@@ -179,7 +175,6 @@ x$group <-as.factor(d$group)
 
 # how many obs?
 x %>% dim() # 262 observations, 3 columns
-#dim(x)
 
 # set seed
 set.seed(0717)
