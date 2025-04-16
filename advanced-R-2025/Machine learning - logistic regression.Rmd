@@ -15,6 +15,7 @@ library(tidyverse)
 library(tidymodels)
 
 # load data
+setwd("/Users/alissamcgill/Documents/Development/advanced-R-2025/advanced-R-2025")
 d <-read.csv("machine.learning.dementiabank.csv")
 
 # clean

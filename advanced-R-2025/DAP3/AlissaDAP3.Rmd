@@ -28,27 +28,32 @@ library(tidymodels)
 # load data
 mortalityData = read.csv("nursingmortalitydata.csv")
 
+# change output variable to a factor
+mortalityData$died <-as.factor(mortalityData$died)
+
 ```
 
 
 
 ```{r  Build a machine learning classifier model}
+# We'll model group classification (not dead vs dead) based on self-reported sex and age
+
 # set random replicable start point
 set.seed(1127)
 
 # setup training and testing data sets
-mortalityData_split = initial_split(mortalityData, strata = group). ###3 we gotta look up this strata 
+mortalityData_split = initial_split(mortalityData, strata = died) 
 mortalityData_train = training(mortalityData_split)
 mortalityData_test = testing(mortalityData_split)
 
 ```
 
 ```{r Fit the model to training data using bootstrap resampling and report the model fit}
+
 mortality_boot = bootstraps(mortalityData_train)
 
 # examine
 mortality_boot 
-
 
 ### SET TIDYMODEL WORKFLOW
 
@@ -57,7 +62,7 @@ logisticModel_spec = set_engine(object = logistic_reg(), engine = "glm")
 
 
 # create a workflow (specifies the formula applied to each training/eval set)
-mortality_workFlow = add_formula(workflow(), group ~ .)
+mortality_workFlow = add_formula(workflow(), died ~ .)
 
 
 # apply model specs and workflow to the training/eval data
@@ -74,7 +79,12 @@ glm_rs
 # training/evaluation fit
 collect_metrics(glm_rs) 
 
+#accuracy = 0.72 pretty decent fit
+#roc_auc = 0.79 quite good fit!
 
+```
+
+```{r Fit the model to the testing data and report the model fit}
 ### CHECK GENERALIZATION TO TEST DATA
 
 ## testing set
@@ -84,16 +94,27 @@ mortality_final <-mortality_workFlow %>%
 
 mortality_final
 
-collect_metrics(mortality_final) 
+metrics = collect_metrics(mortality_final) 
+
+#classificationAccuracy = 0.66 okayish fit
+#rocauc = 0.76 decent fit
 
 collect_predictions(mortality_final) %>%
-  conf_mat(group, .pred_class) 
-```
+  conf_mat(died, .pred_class) 
 
-```{r Fit the model to the testing data and report the model fit}
 
 ```
 
 ```{r Compute sensitivity and specificity }
+
+#compute 
+sensitivity = 27 / (27+8)
+specificity = 20 / (20+16)
+
+#print
+sprintf("sensitivty = %s and specificity = %s", sensitivity, specificity)
+#sensitivty = 0.77 = pretty good
+#specificity = 0.55 = kinda bad. 
+# so this might be okay if we are trying to optimize for sensitivity. 
 
 ```
